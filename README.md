@@ -645,6 +645,7 @@ legal-research-assistant-mcp/
 - [x] Semantic search with vector embeddings and re-ranking
 - [x] Cache management tools
 - [x] Comprehensive test coverage (285+ tests)
+- [x] Web UI with HTMX, Tailwind & Alpine (File upload, PDF extraction, citation extraction)
 
 ### 🎯 High-priority improvements
 
@@ -655,7 +656,7 @@ legal-research-assistant-mcp/
 - [ ] Similarity threshold optimization
 
 2) **Network Visualization Improvements**
-- [ ] Interactive web-based visualizations
+- [ ] Interactive Network Graphs (D3/Vis.js for zoom/pan)
 - [ ] Real-time network updates
 - [ ] Advanced filtering UI (by court, date range, treatment type)
 - [ ] Node sizing by authority/influence
@@ -665,17 +666,16 @@ legal-research-assistant-mcp/
 - [ ] Example scripts for each use case
 - [ ] Jupyter notebook demonstrations
 - [ ] Performance benchmarking suite
+- [ ] Web UI integration for Research Pipeline and Semantic Search
 
 4) **Expanded Research Capabilities**
-- [ ] Batch processing pipelines for bulk research
-- [ ] Issue mapping with cross-citation analysis
 - [ ] Precedent evolution timelines
 - [ ] Comparative case analysis
 
 5) **Integration & Export**
 - [ ] Obsidian plugin development
 - [ ] Export to citation management tools (Zotero, Mendeley)
-- [ ] Document upload and OCR support
+- [ ] OCR for scanned documents
 - [ ] Multi-format export (PDF, Word, LaTeX)
 
 ### 📈 Longer-horizon items

@@ -1,7 +1,7 @@
 """MCP tools for citation network analysis."""
 
 import logging
-from typing import Any, cast
+from typing import Any, cast, Literal
 
 from fastmcp import FastMCP
 
@@ -506,6 +506,7 @@ async def get_network_statistics_impl(
 async def visualize_citation_network_impl(
     citation: str,
     diagram_type: str = "flowchart",
+    style_preset: str = "default",
     direction: str = "TB",
     color_by_treatment: bool = True,
     color_by_court: bool = True,
@@ -522,6 +523,7 @@ async def visualize_citation_network_impl(
     query_params = {
         "citation": citation,
         "diagram_type": diagram_type,
+        "style_preset": style_preset,
         "direction": direction,
         "color_by_treatment": color_by_treatment,
         "color_by_court": color_by_court,
@@ -561,7 +563,7 @@ async def visualize_citation_network_impl(
         )
 
         # Generate Mermaid diagrams
-        generator = MermaidGenerator()
+        generator = MermaidGenerator(style_preset=style_preset)
 
         diagrams = {}
 
@@ -578,16 +580,14 @@ async def visualize_citation_network_impl(
             show_legend=show_legend,
         )
 
-    if diagram_type == "graph" or diagram_type == "all":
-        diagrams["graph"] = generator.generate_graph(
+    if diagram_type == "hierarchical" or diagram_type == "all":
+        diagrams["hierarchical"] = generator.generate_hierarchical(
             network,
-            direction=direction,
-            show_treatments=True,
-            color_by_court=color_by_court,
-            node_size_by=node_size_by,
-            court_palette=court_palette,
             show_legend=show_legend,
         )
+
+    if diagram_type == "mindmap" or diagram_type == "all":
+        diagrams["mindmap"] = generator.generate_mindmap(network)
 
     if diagram_type == "timeline" or diagram_type == "all":
         diagrams["timeline"] = generator.generate_timeline(network)
@@ -616,11 +616,81 @@ async def visualize_citation_network_impl(
             "1. Copy the mermaid_syntax\n"
             "2. Paste in your note between ```mermaid and ``` tags\n"
             "3. The diagram will render automatically\n\n"
-            "Additional options: set node_size_by to 'citation' or 'authority' for emphasis,\n"
-            "toggle color_by_court/color_by_treatment to change palettes,\n"
-            "and enable include_graphml/include_json for exports to other tools."
+            "Style Presets:\n"
+            "- default: Standard styling\n"
+            "- publication: High contrast, official court colors, strict edge styling\n"
+            "- monochrome: Grayscale for printing"
         ),
     }
+
+
+async def export_citation_network_impl(
+    citation: str,
+    format: str = "graphml",
+    max_nodes: int = 100,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Implementation of export_citation_network."""
+    query_params = {
+        "citation": citation,
+        "format": format,
+        "max_nodes": max_nodes,
+    }
+
+    with log_operation(
+        logger,
+        tool_name="export_citation_network",
+        request_id=request_id,
+        query_params=query_params,
+        event="export_citation_network",
+    ):
+        # Build the citation network
+        network = await build_citation_network_impl(
+            citation=citation,
+            max_depth=1,
+            max_nodes=max_nodes,
+            include_treatments=True,
+            request_id=request_id,
+        )
+
+        if "error" in network:
+            return network
+
+        generator = MermaidGenerator()
+
+        result = {}
+
+        if format.lower() == "graphml":
+            content = generator.generate_graphml(network)
+            result = {
+                "format": "graphml",
+                "content": content,
+                "filename": f"{citation.replace(' ', '_')}.graphml",
+                "mime_type": "application/xml"
+            }
+        elif format.lower() == "json":
+            content = generator.generate_json_graph(network)
+            result = {
+                "format": "json",
+                "content": content,
+                "filename": f"{citation.replace(' ', '_')}.json",
+                "mime_type": "application/json"
+            }
+        elif format.lower() == "obsidian" or format.lower() == "canvas":
+            content = generator.generate_obsidian_canvas(network)
+            result = {
+                "format": "canvas",
+                "content": content,
+                "filename": f"{citation.replace(' ', '_')}.canvas",
+                "mime_type": "application/json"
+            }
+        else:
+             return {
+                "error": f"Unsupported format: {format}. Supported: graphml, json, obsidian/canvas",
+                "citation": citation,
+            }
+
+        return result
 
 
 async def generate_citation_report_impl(
@@ -861,7 +931,8 @@ async def get_network_statistics(
 @tool_logging("visualize_citation_network")
 async def visualize_citation_network(
     citation: str,
-    diagram_type: str = "flowchart",
+    diagram_type: Literal["flowchart", "hierarchical", "mindmap", "timeline", "all"] = "flowchart",
+    style_preset: Literal["default", "publication", "monochrome"] = "default",
     direction: str = "TB",
     color_by_treatment: bool = True,
     max_nodes: int = 50,
@@ -870,11 +941,12 @@ async def visualize_citation_network(
     """Generate a Mermaid diagram visualization of a citation network.
 
     Creates beautiful visualizations perfect for Obsidian notes and academic papers.
-    Supports multiple diagram types including flowcharts, graphs, and timelines.
+    Supports multiple diagram types including flowcharts, hierarchical tiers, mindmaps, and timelines.
 
     Args:
         citation: The citation to visualize
-        diagram_type: Type of diagram ("flowchart", "graph", "timeline", or "all")
+        diagram_type: Type of diagram (flowchart, hierarchical, mindmap, timeline, or all)
+        style_preset: Visual style (default, publication, monochrome)
         direction: Diagram direction - "TB" (top-bottom), "LR" (left-right), "BT", "RL"
         color_by_treatment: Whether to color-code by treatment type
         max_nodes: Maximum number of nodes to include
@@ -889,6 +961,7 @@ async def visualize_citation_network(
     return await visualize_citation_network_impl(
         citation,
         diagram_type,
+        style_preset,
         direction,
         color_by_treatment=color_by_treatment,
         color_by_court=True,
@@ -902,6 +975,30 @@ async def visualize_citation_network(
         request_id=request_id,
     )
 
+@network_server.tool()
+@tool_logging("export_citation_network")
+async def export_citation_network(
+    citation: str,
+    format: Literal["graphml", "json", "obsidian", "canvas"] = "graphml",
+    max_nodes: int = 100,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Export the citation network in various formats.
+
+    Args:
+        citation: The citation to export
+        format: Export format (graphml, json, obsidian/canvas)
+        max_nodes: Maximum number of nodes to include
+
+    Returns:
+        Dictionary with content, filename and mime_type
+    """
+    return await export_citation_network_impl(
+        citation,
+        format,
+        max_nodes,
+        request_id
+    )
 
 @network_server.tool()
 @tool_logging("generate_citation_report")

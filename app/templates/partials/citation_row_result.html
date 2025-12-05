@@ -1,0 +1,54 @@
+<tr class="group hover:bg-gray-50 transition-colors">
+    <td class="px-6 py-4 font-mono text-xs text-gray-400">{{ index }}</td>
+    <td class="px-6 py-4 font-medium text-gray-900 relative cursor-help">
+        {{ result.citation }}
+        <!-- Tooltip -->
+        <div class="absolute left-0 bottom-full mb-2 w-72 bg-gray-900 text-white text-xs rounded p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-lg">
+            <p class="font-bold border-b border-gray-700 pb-1 mb-1">{{ result.case_name }}</p>
+            <p class="mb-2">{{ result.summary }}</p>
+            <div class="grid grid-cols-3 gap-1 text-center font-mono text-[10px]">
+                <div class="text-green-400">Pos: {{ result.positive_count }}</div>
+                <div class="text-red-400">Neg: {{ result.negative_count }}</div>
+                <div class="text-gray-400">Neu: {{ result.neutral_count }}</div>
+            </div>
+        </div>
+    </td>
+    <td class="px-6 py-4">
+        <div class="flex flex-col gap-1 w-32">
+            <div class="flex items-center justify-between text-xs">
+                {% if not result.is_good_law %}
+                    <span class="font-bold text-red-600 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span> Bad Law
+                    </span>
+                {% elif result.negative_count > 0 %}
+                     <span class="font-bold text-orange-600 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-orange-600"></span> Warn
+                    </span>
+                {% else %}
+                    <span class="font-bold text-green-600 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-600"></span> Valid
+                    </span>
+                {% endif %}
+                <span class="text-gray-400 text-[10px]">{{ (result.confidence * 100)|int }}%</span>
+            </div>
+            <div class="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden flex">
+                {% set total = result.positive_count + result.negative_count + result.neutral_count %}
+                 {% if total > 0 %}
+                    <div class="bg-green-500 h-full" style="width: {{ (result.positive_count / total * 100)|round(1) }}%"></div>
+                    <div class="bg-red-500 h-full" style="width: {{ (result.negative_count / total * 100)|round(1) }}%"></div>
+                    <div class="bg-gray-300 h-full" style="width: {{ (result.neutral_count / total * 100)|round(1) }}%"></div>
+                {% else %}
+                     <div class="bg-gray-200 h-full w-full"></div>
+                {% endif %}
+            </div>
+        </div>
+    </td>
+    <td class="px-6 py-4 text-right">
+        <button hx-post="/herding/details_html"
+                hx-vals='{"citation": "{{ result.citation }}"}'
+                hx-target="#modal-container"
+                class="text-gray-400 hover:text-black font-medium text-xs transition-colors">
+            Details
+        </button>
+    </td>
+</tr>

@@ -8,9 +8,11 @@ import logging
 import re
 from typing import List, Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from pypdf import PdfReader
 
@@ -36,6 +38,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Setup Templates
+templates = Jinja2Templates(directory="app/templates")
 
 class AnalysisRequest(BaseModel):
     citation: str
@@ -98,8 +103,13 @@ async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "MikeCheck API"}
 
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """Serve the main page."""
+    return templates.TemplateResponse("index.html", {"request": request})
+
 @app.post("/analyze/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(request: Request, file: UploadFile = File(...)):
     """Handle document upload and parsing."""
     try:
         content = await file.read()
@@ -116,21 +126,30 @@ async def upload_document(file: UploadFile = File(...)):
         if not text:
             raise HTTPException(status_code=400, detail="Could not extract text from file")
 
-        citations = extract_citations(text)
+        citations = sorted(extract_citations(text))
+
+        # Check for HTMX request
+        if request.headers.get("hx-request"):
+            return templates.TemplateResponse(
+                "partials/citation_rows.html",
+                {"request": request, "citations": citations}
+            )
 
         return {
             "filename": file.filename,
             "status": "uploaded",
-            "detected_citations": sorted(citations),
+            "detected_citations": citations,
             "summary": f"Successfully extracted {len(citations)} citations from document."
         }
     except Exception as e:
         logger.error(f"Upload failed: {e}")
+        if request.headers.get("hx-request"):
+             return HTMLResponse(f"<div class='p-4 text-red-600'>Error: {str(e)}</div>")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/herding/analyze")
 async def analyze_citation(request: AnalysisRequest):
-    """Run treatment analysis on a citation."""
+    """Run treatment analysis on a citation (JSON API)."""
     try:
         result = await check_case_validity_impl(request.citation)
         return {
@@ -141,6 +160,23 @@ async def analyze_citation(request: AnalysisRequest):
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/herding/analyze_html")
+async def analyze_citation_html(request: Request, citation: str = Form(...), index: int = Form(0)):
+    """Run treatment analysis on a citation (HTMX)."""
+    try:
+        result = await check_case_validity_impl(citation)
+        return templates.TemplateResponse(
+            "partials/citation_row_result.html",
+            {
+                "request": request,
+                "result": result,
+                "index": index
+            }
+        )
+    except Exception as e:
+        logger.error(f"Analysis failed: {e}")
+        return HTMLResponse(f"<div class='text-red-600'>Error analyzing {citation}: {str(e)}</div>")
 
 @app.post("/search/similar")
 async def find_similar(request: SearchRequest):
@@ -162,8 +198,42 @@ async def run_research(request: ResearchRequest):
         logger.error(f"Research failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Mount static files
-app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
+@app.post("/herding/details_html")
+async def analyze_citation_details(request: Request, citation: str = Form(...)):
+    """Get detailed treatment analysis for modal."""
+    try:
+        # Re-run or get cached analysis
+        result = await check_case_validity_impl(citation)
+        return templates.TemplateResponse(
+            "partials/modal_treatment_details.html",
+            {
+                "request": request,
+                "result": result
+            }
+        )
+    except Exception as e:
+        logger.error(f"Details failed: {e}")
+        return HTMLResponse(f"<div class='p-4 text-red-600'>Error: {str(e)}</div>")
+
+@app.post("/search/similar_html")
+async def find_similar_html(request: Request, query: str = Form(...)):
+    """Find similar cases returning HTML."""
+    try:
+        # Use semantic search
+        result = await semantic_search_impl(query, limit=5)
+        return templates.TemplateResponse(
+            "partials/similar_cases_list.html",
+            {
+                "request": request,
+                "results": result["results"]
+            }
+        )
+    except Exception as e:
+        logger.error(f"Search failed: {e}")
+        return HTMLResponse(f"<div class='p-4 text-red-600'>Error: {str(e)}</div>")
+
+# Mount static files (legacy support and for serving other assets if needed)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 if __name__ == "__main__":
     import uvicorn

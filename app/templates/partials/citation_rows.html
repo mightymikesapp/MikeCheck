@@ -1,0 +1,33 @@
+{% for citation in citations %}
+<tr class="group hover:bg-gray-50 transition-colors" id="row-{{ loop.index }}">
+    <td class="px-6 py-4 font-mono text-xs text-gray-400">{{ loop.index }}</td>
+    <td class="px-6 py-4 font-medium text-gray-900">{{ citation }}</td>
+    <td class="px-6 py-4" id="analysis-{{ loop.index }}">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            Pending
+        </span>
+    </td>
+    <td class="px-6 py-4 text-right">
+        <button hx-post="/herding/analyze_html"
+                hx-vals='{"citation": "{{ citation }}", "index": {{ loop.index }} }'
+                hx-target="#row-{{ loop.index }}"
+                hx-swap="outerHTML"
+                hx-indicator="#indicator-{{ loop.index }}"
+                class="check-btn text-blue-600 hover:text-blue-800 font-medium text-xs border border-blue-200 rounded px-2 py-1 hover:bg-blue-50 transition-colors">
+            Check Validity
+        </button>
+        <div id="indicator-{{ loop.index }}" class="htmx-indicator inline-block ml-2 align-middle">
+            <svg class="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+    </td>
+</tr>
+{% endfor %}
+
+<div id="research-all-btn" hx-swap-oob="true"
+     class="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 cursor-pointer"
+     onclick="document.querySelectorAll('.check-btn').forEach(btn => btn.click())">
+    <span>Run All Checks</span>
+</div>

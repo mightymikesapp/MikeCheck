@@ -8,15 +8,14 @@ from typing import Any
 from fastmcp import FastMCP
 
 from app.analysis.mermaid_generator import MermaidGenerator
-from app.logging_config import tool_logging
 from app.config import get_settings
+from app.logging_config import tool_logging
 from app.logging_utils import log_event, log_operation
 from app.mcp_client import get_client
+from app.mcp_types import ToolPayload
 from app.tools.network import build_citation_network_impl
 from app.tools.treatment import check_case_validity_impl
 from app.tools.verification import batch_verify_quotes_impl
-from app.mcp_types import ToolPayload
-
 
 LEGAL_DISCLAIMER = (
     "\n\n---\n"
@@ -99,9 +98,7 @@ async def _analyze_citation(
         }
 
 
-@research_server.tool()
-@tool_logging("run_research_pipeline")
-async def run_research_pipeline(
+async def run_research_pipeline_impl(
     citations: list[str],
     key_questions: list[str] | None = None,
     scope: str | None = None,
@@ -110,19 +107,14 @@ async def run_research_pipeline(
 ) -> dict[str, Any]:
     """Execute a coordinated research workflow across citations and questions.
 
-    This tool orchestrates citation lookup, treatment classification, quote verification,
-    citation network building, and mermaid rendering to produce a structured report.
-
     Args:
         citations: List of citations to analyze.
-        key_questions: Optional research questions to guide the summary.
-        scope: Optional scope or jurisdiction focus to annotate results.
-        quotes: Optional list of quotes to verify. Each item should include keys
-            "quote" and "citation", and may include "pinpoint".
+        key_questions: Optional research questions.
+        scope: Optional scope or jurisdiction focus.
+        quotes: Optional list of quotes to verify.
 
     Returns:
-        Dictionary containing a markdown summary and machine-readable sections for
-        cases, quotes, and questions.
+        Dictionary containing a markdown summary and machine-readable sections.
     """
 
     if not citations:
@@ -202,8 +194,32 @@ async def run_research_pipeline(
 
 
 @research_server.tool()
-@tool_logging("issue_map")
-async def issue_map(
+@tool_logging("run_research_pipeline")
+async def run_research_pipeline(
+    citations: list[str],
+    key_questions: list[str] | None = None,
+    scope: str | None = None,
+    quotes: list[dict[str, str]] | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Execute a coordinated research workflow across citations and questions.
+
+    This tool orchestrates citation lookup, treatment classification, quote verification,
+    citation network building, and mermaid rendering to produce a structured report.
+
+    Args:
+        citations: List of citations to analyze.
+        key_questions: Optional research questions to guide the summary.
+        scope: Optional scope or jurisdiction focus to annotate results.
+        quotes: Optional list of quotes to verify.
+
+    Returns:
+        Dictionary containing a markdown summary and machine-readable sections.
+    """
+    return await run_research_pipeline_impl(citations, key_questions, scope, quotes, request_id)
+
+
+async def issue_map_impl(
     citations: list[str],
     key_questions: list[str] | None = None,
     scope: str | None = None,
@@ -286,6 +302,27 @@ async def issue_map(
 
 
 @research_server.tool()
+@tool_logging("issue_map")
+async def issue_map(
+    citations: list[str],
+    key_questions: list[str] | None = None,
+    scope: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Create an issue map linking key questions to cited authorities.
+
+    Args:
+        citations: Citations to analyze for issue coverage.
+        key_questions: Research questions to organize findings.
+        scope: Optional scope or jurisdiction focus.
+
+    Returns:
+        Dictionary with a markdown summary and structured issue map entries.
+    """
+    return await issue_map_impl(citations, key_questions, scope, request_id)
+
+
+@research_server.tool()
 @tool_logging("check_api_status")
 async def check_api_status(request_id: str | None = None) -> dict[str, Any]:
     """Check the health and connectivity of the CourtListener API.
@@ -295,21 +332,21 @@ async def check_api_status(request_id: str | None = None) -> dict[str, Any]:
     """
     client = get_client()
     import time
-    
+
     start_time = time.time()
     try:
         # We'll try a lightweight lookup, e.g. a known case or just the root endpoint if supported
         # For now, let's try to lookup Roe v. Wade as a health check
         result = await client.lookup_citation("410 U.S. 113", request_id=request_id)
         latency = time.time() - start_time
-        
+
         if "error" in result:
              return {
                 "status": "error",
                 "error": result["error"],
                 "latency_seconds": latency
             }
-            
+
         return {
             "status": "healthy",
             "latency_seconds": latency,

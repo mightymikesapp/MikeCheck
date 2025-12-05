@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock
 import pytest
 from _pytest.python import Function
 
-
 # Ensure the repository root is on the import path so ``app`` can be imported
 # without requiring callers to set PYTHONPATH manually.
 ROOT_DIR = Path(__file__).resolve().parents[1]

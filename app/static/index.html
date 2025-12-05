@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MikeCheck Legal Assistant</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>MikeCheck Legal Assistant</h1>
+
+        <div class="upload-section">
+            <input type="file" id="fileInput" accept=".pdf,.txt" style="display: none;">
+            <label for="fileInput" class="btn">Select Document</label>
+            <span id="fileName" style="margin-left: 10px;">No file selected</span>
+            <br><br>
+            <button id="uploadBtn" class="btn" disabled>Upload & Process</button>
+            <div id="uploadLoader" class="loader" style="display: none;"></div>
+        </div>
+
+        <div id="resultsSection" class="results-section">
+            <h2>Extracted Citations</h2>
+            <div class="actions" style="margin-bottom: 1rem;">
+                <button id="researchAllBtn" class="btn">Research All (Pipeline)</button>
+            </div>
+            <div class="citations-table-container">
+                <table id="citationsTable">
+                    <thead>
+                        <tr>
+                            <th>Citation</th>
+                            <th>Actions</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Tool Results -->
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Analysis Result</h2>
+            <div id="modalLoader" class="loader" style="display: none;"></div>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

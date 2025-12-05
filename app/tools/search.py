@@ -63,18 +63,11 @@ async def _fetch_full_text_safe(client: Any, case_id: str) -> tuple[str, str | N
         return case_id, None
 
 
-@search_server.tool()
-@tool_logging("semantic_search")
-async def semantic_search(query: str, limit: int = 10) -> dict[str, Any]:
-    """Perform a semantic search for legal cases.
-
-    Uses a "Smart Scout" strategy:
-    1. Broadly searches CourtListener API for candidates
-    2. Fetches full text and indexes them locally
-    3. Performs vector similarity search to find conceptually relevant cases
+async def semantic_search_impl(query: str, limit: int = 10) -> dict[str, Any]:
+    """Perform a semantic search for legal cases (implementation).
 
     Args:
-        query: Conceptual search query (e.g., "landlord liability for dog bites")
+        query: Conceptual search query
         limit: Number of results to return
 
     Returns:
@@ -97,21 +90,25 @@ async def semantic_search(query: str, limit: int = 10) -> dict[str, Any]:
     logger.info(f"Found {len(candidates)} candidates")
 
     # Step 2 & 3: Enrichment & Indexing
-    candidate_ids = [str(c["id"]) for c in candidates]
-    
+    candidate_ids = []
+    case_map = {}
+
+    for c in candidates:
+        cid = c.get("id")
+        if not cid and c.get("opinions"):
+            cid = c["opinions"][0].get("id")
+        # If no ID found, skip this candidate
+        if cid:
+            cid = str(cid)
+            candidate_ids.append(cid)
+            case_map[cid] = c
+
     # Check existing to avoid re-fetching
-    # Note: In a real app, we'd want a bulk check method on the store
-    # For now, we'll assume we need to check validity or existence
-    # Chroma doesn't have a cheap "exists" for a list easily exposed in this wrapper,
-    # but we can query IDs.
-    
-    # Optimization: Fetch existing IDs first
     existing_records = vector_store.collection.get(ids=candidate_ids, include=[])
     existing_ids = set(existing_records["ids"]) if existing_records else set()
-    
+
     cases_to_fetch = []
-    case_map = {str(c["id"]): c for c in candidates}
-    
+
     for cid in candidate_ids:
         if cid not in existing_ids:
             cases_to_fetch.append(cid)
@@ -123,19 +120,19 @@ async def semantic_search(query: str, limit: int = 10) -> dict[str, Any]:
     documents = []
     metadatas = []
     ids = []
-    
+
     # Fetch in batches of 5 to respect rate limits gracefully
     batch_size = 5
     for i in range(0, len(cases_to_fetch), batch_size):
         batch_ids = cases_to_fetch[i : i + batch_size]
         tasks = [_fetch_full_text_safe(client, cid) for cid in batch_ids]
         results = await asyncio.gather(*tasks)
-        
+
         for cid, text in results:
             if text:
                 full_text_fetches += 1
                 case = case_map[cid]
-                
+
                 metadata = {
                     "case_name": case.get("caseName", "Unknown"),
                     "citation": case.get("citation", [""])[0] if case.get("citation") else "",
@@ -143,7 +140,7 @@ async def semantic_search(query: str, limit: int = 10) -> dict[str, Any]:
                     "court": case.get("court", ""),
                     "original_score": case.get("score", 0.0),
                 }
-                
+
                 documents.append(text)
                 metadatas.append(metadata)
                 ids.append(cid)
@@ -182,6 +179,26 @@ async def semantic_search(query: str, limit: int = 10) -> dict[str, Any]:
             "total_library_size": vector_store.count()
         }
     }
+
+
+@search_server.tool()
+@tool_logging("semantic_search")
+async def semantic_search(query: str, limit: int = 10) -> dict[str, Any]:
+    """Perform a semantic search for legal cases.
+
+    Uses a "Smart Scout" strategy:
+    1. Broadly searches CourtListener API for candidates
+    2. Fetches full text and indexes them locally
+    3. Performs vector similarity search to find conceptually relevant cases
+
+    Args:
+        query: Conceptual search query (e.g., "landlord liability for dog bites")
+        limit: Number of results to return
+
+    Returns:
+        Dictionary with re-ranked search results and statistics
+    """
+    return await semantic_search_impl(query, limit)
 
 
 @search_server.tool()

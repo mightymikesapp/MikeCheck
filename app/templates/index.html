@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MikeCheck Legal Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        kalshi: {
+                            black: '#000000',
+                            gray: '#F3F4F6',
+                            green: '#00D289',
+                            red: '#FF4D4D',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        .htmx-indicator { display: none; }
+        .htmx-request .htmx-indicator { display: inline-block; }
+        .htmx-request.htmx-indicator { display: inline-block; }
+    </style>
+</head>
+<body class="text-gray-900 font-sans">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="h-8 w-8 bg-black rounded-full flex items-center justify-center text-white font-bold">M</div>
+                <h1 class="font-bold text-xl tracking-tight">MikeCheck</h1>
+            </div>
+            <nav class="flex gap-4 text-sm font-medium text-gray-500">
+                <a href="#" class="hover:text-black transition-colors">History</a>
+                <a href="#" class="hover:text-black transition-colors">Settings</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Upload Section -->
+        <div class="mb-8" x-data="{ dragging: false }">
+            <form hx-post="/analyze/upload"
+                  hx-encoding="multipart/form-data"
+                  hx-target="#citations-body"
+                  hx-indicator="#upload-indicator"
+                  class="relative group">
+
+                <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-black transition-colors bg-white cursor-pointer"
+                     :class="{ 'border-black bg-gray-50': dragging }"
+                     @dragover.prevent="dragging = true"
+                     @dragleave.prevent="dragging = false"
+                     @drop.prevent="dragging = false; $refs.fileInput.files = $event.dataTransfer.files; $el.closest('form').requestSubmit()">
+
+                    <input type="file" name="file" x-ref="fileInput" class="absolute inset-0 opacity-0 cursor-pointer"
+                           @change="$el.closest('form').requestSubmit()">
+
+                    <div class="space-y-2">
+                        <div class="mx-auto h-12 w-12 text-gray-400">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                        </div>
+                        <div class="text-gray-600 font-medium">Click to upload or drag and drop</div>
+                        <p class="text-xs text-gray-500">PDF or TXT up to 10MB</p>
+                    </div>
+                </div>
+            </form>
+            <div id="upload-indicator" class="htmx-indicator w-full mt-2">
+                 <div class="h-1 w-full bg-gray-200 overflow-hidden rounded-full">
+                    <div class="animate-progress w-full h-full bg-black origin-left-right"></div>
+                 </div>
+                 <p class="text-center text-xs text-gray-500 mt-1">Extracting citations...</p>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h2 class="font-semibold text-gray-800">Citations</h2>
+                <div class="flex gap-2">
+                    <button id="research-all-btn"
+                            class="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 hidden">
+                        <span>Research All</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-6 py-3 font-medium w-12">#</th>
+                            <th class="px-6 py-3 font-medium">Citation</th>
+                            <th class="px-6 py-3 font-medium">Analysis</th>
+                            <th class="px-6 py-3 font-medium text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="citations-body" class="divide-y divide-gray-100">
+                        <!-- Rows will be injected here -->
+                        <tr class="text-gray-500">
+                            <td colspan="4" class="px-6 py-8 text-center">No citations loaded yet. Upload a document to begin.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Portal -->
+    <div id="modal-container"></div>
+
+    <style>
+        @keyframes progress {
+          0% {
+            transform: translateX(0) scaleX(0);
+          }
+          40% {
+            transform: translateX(0) scaleX(0.4);
+          }
+          100% {
+            transform: translateX(100%) scaleX(0.5);
+          }
+        }
+        .animate-progress {
+          animation: progress 2s infinite linear;
+          transform-origin: 0% 50%;
+        }
+    </style>
+</body>
+</html>

@@ -15,12 +15,6 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
-def pytest_configure(config):
-    """Register common markers to silence unknown-marker warnings."""
-
-    config.addinivalue_line("markers", "asyncio: mark a test as asyncio-enabled")
-
-
 @pytest.fixture
 def mock_client(mocker):
     """Mock the CourtListener client and patch common access points."""
@@ -112,29 +106,6 @@ def pytest_pycollect_makeitem(collector: pytest.Collector, name: str, obj: objec
     return None
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_pyfunc_call(pyfuncitem: pytest.Function) -> bool | None:
-    """Execute coroutine tests using an event loop."""
-    test_obj = pyfuncitem.obj
-    if not inspect.iscoroutinefunction(test_obj):
-        return None
-
-    loop: asyncio.AbstractEventLoop | None = pyfuncitem.funcargs.get("event_loop")  # type: ignore[attr-defined]
-    created_loop = False
-
-    if loop is None:
-        loop = asyncio.new_event_loop()
-        created_loop = True
-
-    try:
-        asyncio.set_event_loop(loop)
-        kwargs = {name: pyfuncitem.funcargs[name] for name in pyfuncitem._fixtureinfo.argnames}
-        loop.run_until_complete(test_obj(**kwargs))
-    finally:
-        if created_loop:
-            loop.close()
-        asyncio.set_event_loop(None)
-    return True
 
 
 def pytest_collection_modifyitems(config, items):

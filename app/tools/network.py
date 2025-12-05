@@ -35,7 +35,6 @@ async def build_citation_network_impl(
         "include_treatments": include_treatments,
     }
 
-    settings = get_settings()
     client = get_client()
 
     with log_operation(

@@ -30,7 +30,7 @@ _vector_store_instance: "LegalVectorStore | None" = None
 
 def get_vector_store() -> LegalVectorStore:
     """Lazily initialize and return the LegalVectorStore instance.
-    
+
     This allows tests to inject a mock before this is called.
     """
     global _vector_store_instance

@@ -3,7 +3,6 @@
 Tests cache hit/miss performance, invalidation, and concurrent access.
 """
 
-import json
 import time
 from pathlib import Path
 from threading import Thread

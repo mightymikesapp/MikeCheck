@@ -5,7 +5,7 @@ import json
 import logging
 import time
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

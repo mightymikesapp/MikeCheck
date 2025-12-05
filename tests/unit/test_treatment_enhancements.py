@@ -1,7 +1,9 @@
 """Unit tests for TreatmentClassifier enhancements."""
 
 import pytest
+
 from app.analysis.treatment_classifier import TreatmentClassifier, TreatmentType
+
 
 @pytest.fixture
 def classifier():
@@ -69,17 +71,17 @@ def test_court_hierarchy_weighting(classifier):
     # But wait, classify_treatment calls extract_signals internally.
     # We can test _aggregate_signals directly or mock extract_signals.
     # Let's test _aggregate_signals directly as we modified it.
-    
+
     # We need real TreatmentSignal objects
     from app.analysis.treatment_classifier import TreatmentSignal
-    
+
     signal = TreatmentSignal(
         signal="overruled",
         treatment_type=TreatmentType.NEGATIVE,
         position=0,
         context=""
     )
-    
+
     # SCOTUS: 1.0 * 1.0 = 1.0
     type_, conf = classifier._aggregate_signals([signal], court_weight=1.0)
     assert conf == 1.0
@@ -98,7 +100,7 @@ def test_distinguished_weight(classifier):
     signals = classifier.extract_signals(text, "case")
     assert len(signals) > 0
     assert signals[0].signal == "distinguished"
-    
+
     # Check weight in _aggregate_signals
     type_, conf = classifier._aggregate_signals(signals)
     assert conf == 0.4  # Should be 0.4 now

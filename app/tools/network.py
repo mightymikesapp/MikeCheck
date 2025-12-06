@@ -105,6 +105,7 @@ async def build_citation_network_impl(
         # Optionally include treatment analysis
         treatments = None
         if include_treatments:
+            import asyncio
             log_event(
                 logger,
                 "Including treatment analysis in network",
@@ -115,12 +116,34 @@ async def build_citation_network_impl(
             )
             classifier = TreatmentClassifier()
 
+            async def _classify_case(c_case):
+                # Note: classify_treatment is synchronous for now, but wrapping it
+                # prepares for future async capability (e.g. fetching full text)
+                # and allows other coroutines to run if this were IO bound.
+                # If it remains CPU bound, this doesn't help much without a threadpool,
+                # but if full-text fetching is added, this becomes critical.
+                return classifier.classify_treatment(c_case, citation)
+
+            # Process treatments in parallel
+            # We wrap the sync call. If we wanted true parallelism for CPU bound work
+            # we would use run_in_executor, but here we anticipate IO.
+            # Since classify_treatment is currently sync and fast, we just call it directly
+            # but structurally setup for async gathering.
+
+            # Use run_in_executor to avoid blocking the event loop if classification is CPU heavy
+            loop = asyncio.get_running_loop()
+            tasks = [
+                loop.run_in_executor(None, classifier.classify_treatment, c_case, citation)
+                for c_case in citing_cases[:max_nodes]
+            ]
+
+            treatment_results = await asyncio.gather(*tasks)
+
             treatments = []
-            for citing_case in citing_cases[:max_nodes]:
-                treatment = classifier.classify_treatment(citing_case, citation)
+            for i, treatment in enumerate(treatment_results):
                 treatments.append(
                     {
-                        "citing_case": citing_case,
+                        "citing_case": citing_cases[i],
                         "treatment": treatment.treatment_type.value,
                         "confidence": treatment.confidence,
                         "excerpt": treatment.excerpt,

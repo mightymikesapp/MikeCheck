@@ -505,6 +505,8 @@ class CourtListenerClient:
             citation,  # Unquoted
         ]
 
+        import asyncio
+
         with log_operation(
             logger,
             tool_name="find_citing_cases",
@@ -517,55 +519,51 @@ class CourtListenerClient:
             warnings: list[str] = []
             confidence = 1.0
 
-            for query in query_attempts:
+            async def _perform_search(query: str) -> tuple[str, dict[str, Any] | None, Exception | None]:
                 params = {
                     "q": query,
                     "type": "o",  # Opinion type
                     "order_by": "dateFiled desc",  # Most recent first
                     "hit": min(limit, 100),
                 }
-
                 try:
                     response = await self._request(
                         "GET", "search/", params=params, headers=self._get_headers()
                     )
-
                     data = response.json()
-                    results = data.get("results", [])
-                    if results:
-                        aggregated_results.extend(results)
-                        log_event(
-                            logger,
-                            "Found citing cases",
-                            tool_name="find_citing_cases",
-                            request_id=request_id,
-                            query_params=params,
-                            citation_count=len(results),
-                            event="find_citing_cases_success",
-                        )
-                        if len(aggregated_results) >= limit:
-                            break
-                    else:
-                        warning_msg = (
-                            f"Query '{query}' yielded no results; continuing with fallback searches."
-                        )
-                        warnings.append(warning_msg)
-                        log_event(
-                            logger,
-                            warning_msg,
-                            level=logging.WARNING,
-                            tool_name="find_citing_cases",
-                            request_id=request_id,
-                            query_params=params,
-                            event="find_citing_cases_retry",
-                        )
-                except httpx.HTTPError as e:
-                    status_code = (
-                        e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
-                    )
+                    return query, data, None
+                except Exception as e:
+                    return query, None, e
 
-                    # Safe error message construction
-                    error_msg = str(e)
+            # Run searches in parallel
+            search_tasks = [_perform_search(q) for q in query_attempts]
+            results = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+            for i, result in enumerate(results):
+                # Handle potential task exception wrapper
+                if isinstance(result, Exception):
+                    query = query_attempts[i]
+                    data = None
+                    error = result
+                else:
+                    query, data, error = result
+
+                params = {
+                    "q": query,
+                    "type": "o",
+                    "order_by": "dateFiled desc",
+                    "hit": min(limit, 100),
+                }
+
+                if error:
+                    # Handle error
+                    error_msg = str(error)
+                    if isinstance(error, httpx.HTTPError):
+                         status_code = (
+                            error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
+                        )
+                    else:
+                        status_code = None
 
                     failed_requests.append(
                         {
@@ -576,7 +574,7 @@ class CourtListenerClient:
                         }
                     )
                     confidence = max(confidence - 0.2, 0.3)
-                    warning_msg = f"Query '{query}' failed with error: {error_msg}; continuing with fallback searches."
+                    warning_msg = f"Query '{query}' failed with error: {error_msg}."
                     warnings.append(warning_msg)
                     log_event(
                         logger,
@@ -592,10 +590,38 @@ class CourtListenerClient:
                             "query": query,
                             "params": params,
                             "error": error_msg,
-                            "status": getattr(e, "response", None) and getattr(e.response, "status_code", None),
+                            "status": status_code,
                         }
                     )
-                    continue
+                else:
+                    # Handle success
+                    search_results = data.get("results", []) if data else []
+                    if search_results:
+                        aggregated_results.extend(search_results)
+                        log_event(
+                            logger,
+                            "Found citing cases",
+                            tool_name="find_citing_cases",
+                            request_id=request_id,
+                            query_params=params,
+                            citation_count=len(search_results),
+                            event="find_citing_cases_success",
+                        )
+                        # We don't break early in parallel execution, we gather all results
+                    else:
+                        warning_msg = (
+                            f"Query '{query}' yielded no results."
+                        )
+                        warnings.append(warning_msg)
+                        log_event(
+                            logger,
+                            warning_msg,
+                            level=logging.WARNING,
+                            tool_name="find_citing_cases",
+                            request_id=request_id,
+                            query_params=params,
+                            event="find_citing_cases_retry",
+                        )
 
             # Deduplicate results while preserving order
             seen_ids: set[Any] = set()

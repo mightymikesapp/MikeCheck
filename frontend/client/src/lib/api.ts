@@ -57,7 +57,7 @@ export const mikeCheckApi = {
     return response.data;
   },
 
-  searchSimilar: async (query: string, limit: int = 10) => {
+  searchSimilar: async (query: string, limit: number = 10) => {
     const response = await api.post<SearchResult>('/search/similar', { query, limit });
     return response.data;
   },

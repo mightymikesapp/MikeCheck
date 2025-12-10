@@ -318,16 +318,17 @@ def test_verify_quote_exact_match(matcher, sample_source_text):
 
 
 @pytest.mark.unit
+@pytest.mark.unit
 def test_verify_quote_fuzzy_match_high_similarity(matcher):
     """Test verification with high-similarity fuzzy match."""
-    quote = "The Supreme Court has long recognized"
-    source = "The Supreme Court has long recognized this principle"
+    quote = "The Supreme Court has long recognized this principle"
+    source = "The Supreme Court has long recognized this important principle"
 
     result = matcher.verify_quote(quote, source, "Test")
 
     assert result.found is True
-    assert result.exact_match is True or result.similarity >= 0.95
-
+    assert result.exact_match is False
+    assert result.similarity >= 0.9
 
 @pytest.mark.unit
 def test_verify_quote_fuzzy_match_low_similarity(matcher):

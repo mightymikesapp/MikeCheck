@@ -19,10 +19,10 @@ def extract_text_from_pdf(content: bytes) -> str:
     """Extract text from PDF content."""
     try:
         reader = PdfReader(io.BytesIO(content))
-        text = ""
+        text_parts: list[str] = []
         for page in reader.pages:
-            text += page.extract_text() + "\n"
-        return text
+            text_parts.append((page.extract_text() or ""))
+        return "\n".join(text_parts)
     except Exception as e:
         logger.error(f"PDF extraction failed: {e}")
         return ""

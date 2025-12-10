@@ -425,10 +425,11 @@ class CourtListenerClient:
                     params=params,
                     headers=self._get_headers(),
                 )
-                data = cast(dict[str, Any], response.json())
+                data = response.json()
+                results_raw = data.get("results", []) if isinstance(data, dict) else []
                 case_results = [
                     cast(CourtListenerCase, result)
-                    for result in data.get("results", [])
+                    for result in results_raw
                     if isinstance(result, dict)
                 ]
 

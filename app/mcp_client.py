@@ -615,7 +615,7 @@ class CourtListenerClient:
                     "hit": min(limit, 100),
                 }
 
-                search_results_raw = data.get("results", []) if data else []
+                search_results_raw = data.get("results", []) if isinstance(data, dict) else []
                 search_results: list[CourtListenerCase] = [
                     cast(CourtListenerCase, result)
                     for result in search_results_raw

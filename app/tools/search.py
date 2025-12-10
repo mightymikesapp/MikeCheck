@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from fastmcp import FastMCP
 
@@ -83,20 +83,52 @@ async def semantic_search_impl(query: str, limit: int = 10) -> dict[str, Any]:
     search_results = await client.search_opinions(
         q=query,
         limit=candidate_limit,
-        order_by="score desc"
+        order_by="score desc",
     )
 
-    candidates = search_results.get("results", [])
+    raw_candidates = search_results.get("results")
+    if raw_candidates is None:
+        return {
+            "query": query,
+            "results": [],
+            "stats": {
+                "candidates_found": 0,
+                "full_texts_fetched": 0,
+                "indexed_count": 0,
+                "total_library_size": vector_store.count(),
+            },
+        }
+
+    if not isinstance(raw_candidates, list):
+        logger.warning("Unexpected search response shape; no candidates to process")
+        return {
+            "query": query,
+            "results": [],
+            "stats": {
+                "candidates_found": 0,
+                "full_texts_fetched": 0,
+                "indexed_count": 0,
+                "total_library_size": vector_store.count(),
+            },
+        }
+
+    candidates: list[Mapping[str, object]] = [
+        candidate for candidate in raw_candidates if isinstance(candidate, Mapping)
+    ]
     logger.info(f"Found {len(candidates)} candidates")
 
     # Step 2 & 3: Enrichment & Indexing
-    candidate_ids = []
-    case_map = {}
+    candidate_ids: list[str] = []
+    case_map: dict[str, Mapping[str, object]] = {}
 
     for c in candidates:
         cid = c.get("id")
-        if not cid and c.get("opinions"):
-            cid = c["opinions"][0].get("id")
+        if cid is None and c.get("opinions"):
+            opinions = c.get("opinions")
+            if isinstance(opinions, Sequence) and opinions:
+                first_opinion = opinions[0]
+                if isinstance(first_opinion, Mapping):
+                    cid = first_opinion.get("id")
         # If no ID found, skip this candidate
         if cid:
             cid = str(cid)
@@ -105,7 +137,15 @@ async def semantic_search_impl(query: str, limit: int = 10) -> dict[str, Any]:
 
     # Check existing to avoid re-fetching
     existing_records = vector_store.collection.get(ids=candidate_ids, include=[])
-    existing_ids = set(existing_records["ids"]) if existing_records else set()
+    existing_ids: set[str] = set()
+    if isinstance(existing_records, Mapping):
+        record_ids = existing_records.get("ids")
+        if (
+            isinstance(record_ids, list)
+            and record_ids
+            and isinstance(record_ids[0], list)
+        ):
+            existing_ids = {str(value) for value in record_ids[0] if value is not None}
 
     cases_to_fetch = []
 
@@ -126,24 +166,35 @@ async def semantic_search_impl(query: str, limit: int = 10) -> dict[str, Any]:
     for i in range(0, len(cases_to_fetch), batch_size):
         batch_ids = cases_to_fetch[i : i + batch_size]
         tasks = [_fetch_full_text_safe(client, cid) for cid in batch_ids]
-        results = await asyncio.gather(*tasks)
+        full_text_results = await asyncio.gather(*tasks)
 
-        for cid, text in results:
-            if text:
-                full_text_fetches += 1
-                case = case_map[cid]
+        for cid, text in full_text_results:
+            if not text:
+                continue
 
-                metadata = {
-                    "case_name": case.get("caseName", "Unknown"),
-                    "citation": case.get("citation", [""])[0] if case.get("citation") else "",
-                    "date_filed": case.get("dateFiled", ""),
-                    "court": case.get("court", ""),
-                    "original_score": case.get("score", 0.0),
-                }
+            case = case_map.get(cid)
+            if case is None:
+                continue
 
-                documents.append(text)
-                metadatas.append(metadata)
-                ids.append(cid)
+            full_text_fetches += 1
+
+            case_name = case.get("caseName") if isinstance(case.get("caseName"), str) else "Unknown"
+            citations = case.get("citation")
+            primary_citation = ""
+            if isinstance(citations, list) and citations and isinstance(citations[0], str):
+                primary_citation = citations[0]
+
+            metadata = {
+                "case_name": case_name,
+                "citation": primary_citation,
+                "date_filed": case.get("dateFiled", ""),
+                "court": case.get("court", ""),
+                "original_score": case.get("score", 0.0),
+            }
+
+            documents.append(text)
+            metadatas.append(metadata)
+            ids.append(cid)
 
     # Upsert to vector store
     if documents:
@@ -157,17 +208,46 @@ async def semantic_search_impl(query: str, limit: int = 10) -> dict[str, Any]:
     # Step 5: Format Results
     formatted_results = []
 
-    if results["ids"] and results["ids"][0]:
-        num_results = len(results["ids"][0])
+    ids_result = results.get("ids")
+    metadatas_result = results.get("metadatas")
+    distances_result = results.get("distances")
+
+    if (
+        isinstance(ids_result, list)
+        and ids_result
+        and isinstance(ids_result[0], list)
+        and isinstance(metadatas_result, list)
+        and metadatas_result
+        and isinstance(metadatas_result[0], list)
+        and isinstance(distances_result, list)
+        and distances_result
+        and isinstance(distances_result[0], list)
+    ):
+        num_results = min(
+            len(ids_result[0]),
+            len(metadatas_result[0]),
+            len(distances_result[0]),
+        )
         for i in range(num_results):
-            formatted_results.append({
-                "case_name": results["metadatas"][0][i].get("case_name"),
-                "citation": results["metadatas"][0][i].get("citation"),
-                "similarity_score": 1.0 - results["distances"][0][i],
-                "date_filed": results["metadatas"][0][i].get("date_filed"),
-                "court": results["metadatas"][0][i].get("court"),
-                "id": results["ids"][0][i],
-            })
+            metadata_entry = metadatas_result[0][i]
+            distance = distances_result[0][i]
+            case_id = ids_result[0][i]
+
+            if not isinstance(metadata_entry, Mapping):
+                continue
+            if not isinstance(distance, (int, float)):
+                continue
+
+            formatted_results.append(
+                {
+                    "case_name": metadata_entry.get("case_name"),
+                    "citation": metadata_entry.get("citation"),
+                    "similarity_score": 1.0 - float(distance),
+                    "date_filed": metadata_entry.get("date_filed"),
+                    "court": metadata_entry.get("court"),
+                    "id": case_id,
+                }
+            )
 
     return {
         "query": query,

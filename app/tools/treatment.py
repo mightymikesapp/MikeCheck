@@ -5,7 +5,7 @@ serving as a free alternative to Shepard's Citations and KeyCite.
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from fastmcp import FastMCP
 
@@ -15,12 +15,52 @@ from app.logging_config import tool_logging
 from app.logging_utils import log_event, log_operation
 from app.mcp_client import get_client
 from app.mcp_types import ToolPayload
-from app.types import CourtListenerCase, TreatmentResult
+from app.types import CourtListenerCase, TreatmentResult, TreatmentWarning
 
 logger = logging.getLogger(__name__)
 
 # Initialize classifier
 classifier = TreatmentClassifier()
+
+
+def _coerce_failed_requests(raw_value: Any) -> list[dict[str, object]]:
+    """Ensure failed request entries are dictionaries."""
+
+    if not isinstance(raw_value, list):
+        return []
+
+    return [entry for entry in raw_value if isinstance(entry, dict)]
+
+
+def _coerce_warnings(raw_value: Any) -> list[str | TreatmentWarning]:
+    """Normalize warnings from API responses to supported values."""
+
+    if not isinstance(raw_value, list):
+        return []
+
+    warnings: list[str | TreatmentWarning] = []
+    for item in raw_value:
+        if isinstance(item, str):
+            warnings.append(item)
+        elif isinstance(item, dict):
+            warnings.append(cast(TreatmentWarning, item))
+    return warnings
+
+
+def _coerce_incomplete_flag(raw_value: Any) -> bool:
+    """Return a boolean flag for incomplete data markers."""
+
+    return raw_value is True
+
+
+def _coerce_cases(raw_results: list[Any]) -> list[CourtListenerCase]:
+    """Filter API results down to CourtListener case dictionaries."""
+
+    cases: list[CourtListenerCase] = []
+    for case in raw_results:
+        if isinstance(case, dict):
+            cases.append(cast(CourtListenerCase, case))
+    return cases
 
 
 # Implementation functions (can be called directly or via MCP tools)
@@ -64,7 +104,31 @@ async def check_case_validity_impl(
             limit=settings.max_citing_cases,
             request_id=request_id,
         )
-        citing_cases: list[CourtListenerCase] = citing_cases_result["results"]
+
+        raw_results = citing_cases_result.get("results")
+        if not isinstance(raw_results, list):
+            return {
+                "error": "Unexpected response format when fetching citing cases.",
+                "citation": citation,
+                "failed_requests": _coerce_failed_requests(
+                    citing_cases_result.get("failed_requests")
+                ),
+                "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
+                "incomplete_data": True,
+            }
+
+        citing_cases = _coerce_cases(raw_results)
+
+        if not citing_cases and raw_results:
+            return {
+                "error": "No usable citing cases returned from API response.",
+                "citation": citation,
+                "failed_requests": _coerce_failed_requests(
+                    citing_cases_result.get("failed_requests")
+                ),
+                "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
+                "incomplete_data": True,
+            }
         log_event(
             logger,
             "Citing cases located",
@@ -118,11 +182,13 @@ async def check_case_validity_impl(
             if needs_full_text:
                 try:
                     # Extract opinion IDs from the case
-                    opinion_ids = [
-                        op.get("id")
-                        for op in citing_case.get("opinions", [])
-                        if op.get("id")
-                    ]
+                    opinion_ids: list[int] = []
+                    for op in citing_case.get("opinions", []):
+                        if not isinstance(op, dict):
+                            continue
+                        opinion_id = op.get("id")
+                        if isinstance(opinion_id, int):
+                            opinion_ids.append(opinion_id)
 
                     if opinion_ids:
                         # Fetch full text for first opinion
@@ -184,7 +250,7 @@ async def check_case_validity_impl(
             aggregated = classifier.aggregate_treatments(treatments, citation)
 
             # Build warnings list
-            warnings = []
+            warnings: list[TreatmentWarning] = []
             for neg_treatment in aggregated.negative_treatments:
                 for signal in neg_treatment.signals_found[:2]:  # Top 2 signals
                     warnings.append(
@@ -198,7 +264,18 @@ async def check_case_validity_impl(
                     )
 
             base_confidence = aggregated.confidence
-            if citing_cases_result.get("incomplete_data"):
+            failed_requests = _coerce_failed_requests(
+                citing_cases_result.get("failed_requests")
+            )
+            incomplete_data = _coerce_incomplete_flag(
+                citing_cases_result.get("incomplete_data")
+            ) or bool(failed_requests)
+            result_warnings: list[str | TreatmentWarning] = [
+                *warnings,
+                *_coerce_warnings(citing_cases_result.get("warnings")),
+            ]
+
+            if incomplete_data:
                 base_confidence = max(base_confidence * 0.8, 0.3)
 
             return {
@@ -212,9 +289,9 @@ async def check_case_validity_impl(
                 "negative_count": aggregated.negative_count,
                 "neutral_count": aggregated.neutral_count,
                 "unknown_count": aggregated.unknown_count,
-                "warnings": warnings + citing_cases_result.get("warnings", []),
-                "failed_requests": citing_cases_result.get("failed_requests", []),
-                "incomplete_data": citing_cases_result.get("incomplete_data", False),
+                "warnings": result_warnings,
+                "failed_requests": failed_requests,
+                "incomplete_data": incomplete_data,
                 "recommendation": (
                     "Manual review recommended"
                     if not aggregated.is_good_law or aggregated.negative_count > 0
@@ -234,9 +311,13 @@ async def check_case_validity_impl(
                 "negative_count": 0,
                 "neutral_count": 0,
                 "unknown_count": 0,
-                "warnings": citing_cases_result.get("warnings", []),
-                "failed_requests": citing_cases_result.get("failed_requests", []),
-                "incomplete_data": citing_cases_result.get("incomplete_data", True),
+                "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
+                "failed_requests": _coerce_failed_requests(
+                    citing_cases_result.get("failed_requests")
+                ),
+                "incomplete_data": _coerce_incomplete_flag(
+                    citing_cases_result.get("incomplete_data")
+                ),
                 "recommendation": "Case has not been cited. Validity uncertain.",
             }
 
@@ -272,7 +353,27 @@ async def get_citing_cases_impl(
         citing_cases_result = await client.find_citing_cases(
             citation, limit=limit, request_id=request_id
         )
-        citing_cases = citing_cases_result["results"]
+        raw_results = citing_cases_result.get("results")
+        if not isinstance(raw_results, list):
+            return {
+                "citation": citation,
+                "total_found": 0,
+                "citing_cases": [],
+                "filter_applied": treatment_filter,
+                "incomplete_data": True,
+                "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
+                "failed_requests": _coerce_failed_requests(
+                    citing_cases_result.get("failed_requests")
+                ),
+            }
+
+        citing_cases = _coerce_cases(raw_results)
+        failed_requests = _coerce_failed_requests(
+            citing_cases_result.get("failed_requests")
+        )
+        incomplete_data = _coerce_incomplete_flag(
+            citing_cases_result.get("incomplete_data")
+        ) or bool(failed_requests)
 
         # Analyze treatment
         treatments = []
@@ -315,9 +416,9 @@ async def get_citing_cases_impl(
             "total_found": len(citing_cases),
             "citing_cases": treatments,
             "filter_applied": treatment_filter,
-            "incomplete_data": citing_cases_result.get("incomplete_data", False),
-            "warnings": citing_cases_result.get("warnings", []),
-            "failed_requests": citing_cases_result.get("failed_requests", []),
+            "incomplete_data": incomplete_data,
+            "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
+            "failed_requests": failed_requests,
         }
 
 

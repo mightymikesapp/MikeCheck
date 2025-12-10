@@ -58,8 +58,8 @@ export default function CitationEditor() {
             </div>
           )}
           
-          {validations.map((val, i) => (
-            <Card key={i} className={cn(
+          {validations.map((val) => (
+            <Card key={val.line} className={cn(
               "border-l-4 transition-all duration-300",
               val.result.isValid ? "border-l-green-500" : "border-l-destructive"
             )}>

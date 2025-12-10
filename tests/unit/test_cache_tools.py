@@ -67,41 +67,23 @@ def test_cache_clear_all_caches(mock_cache_manager):
 
 
 @pytest.mark.unit
-def test_cache_clear_specific_type_metadata(mock_cache_manager):
-    """Test clearing a specific cache type (metadata)."""
+@pytest.mark.parametrize(
+    "cache_type_str, cache_type_enum",
+    [
+        ("metadata", CacheType.METADATA),
+        ("text", CacheType.TEXT),
+        ("search", CacheType.SEARCH),
+    ],
+)
+def test_cache_clear_specific_types(mock_cache_manager, cache_type_str, cache_type_enum):
+    """Test clearing specific cache types."""
     with patch("app.tools.cache_tools.get_cache_manager", return_value=mock_cache_manager):
-        result = cache_clear_impl(type="metadata")
+        result = cache_clear_impl(type=cache_type_str)
 
-        # Verify return structure
         assert result["status"] == "success"
-        assert "metadata" in result["message"]
+        assert cache_type_str in result["message"]
         assert result["files_cleared"] == 10
-
-        # Verify cache manager was called with CacheType.METADATA
-        mock_cache_manager.clear.assert_called_once_with(CacheType.METADATA)
-
-
-@pytest.mark.unit
-def test_cache_clear_specific_type_text(mock_cache_manager):
-    """Test clearing text cache type."""
-    with patch("app.tools.cache_tools.get_cache_manager", return_value=mock_cache_manager):
-        result = cache_clear_impl(type="text")
-
-        assert result["status"] == "success"
-        assert "text" in result["message"]
-        mock_cache_manager.clear.assert_called_once_with(CacheType.TEXT)
-
-
-@pytest.mark.unit
-def test_cache_clear_specific_type_search(mock_cache_manager):
-    """Test clearing search cache type."""
-    with patch("app.tools.cache_tools.get_cache_manager", return_value=mock_cache_manager):
-        result = cache_clear_impl(type="search")
-
-        assert result["status"] == "success"
-        assert "search" in result["message"]
-        mock_cache_manager.clear.assert_called_once_with(CacheType.SEARCH)
-
+        mock_cache_manager.clear.assert_called_once_with(cache_type_enum)
 
 @pytest.mark.unit
 def test_cache_clear_invalid_type_returns_error(mock_cache_manager):

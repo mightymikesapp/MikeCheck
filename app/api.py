@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from starlette.responses import TemplateResponse
 
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
 from app.tools.research import run_research_pipeline_impl
@@ -71,7 +72,7 @@ async def home(request: Request) -> HTMLResponse:
 @app.post("/analyze/upload")
 async def upload_document(
     request: Request, file: UploadFile = File(...)
-):
+) -> TemplateResponse | dict[str, Any]:
     """Handle document upload and parsing."""
     try:
         content = await file.read()

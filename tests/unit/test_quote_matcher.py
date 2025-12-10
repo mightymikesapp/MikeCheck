@@ -299,7 +299,7 @@ def test_find_differences_word_replacement(matcher):
     text2 = "the slow brown fox"
     differences = matcher._find_differences(text1, text2)
 
-    assert any("Words differ" in d or "replace" in d.lower() for d in differences)
+    assert any("'quick' vs 'slow'" in d for d in differences)
 
 
 # Test verify_quote

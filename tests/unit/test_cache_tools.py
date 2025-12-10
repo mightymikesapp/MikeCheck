@@ -101,22 +101,20 @@ def test_cache_clear_invalid_type_returns_error(mock_cache_manager):
 
 
 @pytest.mark.unit
-def test_cache_clear_case_insensitive(mock_cache_manager):
+@pytest.mark.parametrize(
+    "type_input, expected_enum",
+    [
+        ("METADATA", CacheType.METADATA),
+        ("TeXt", CacheType.TEXT),
+        ("sEaRcH", CacheType.SEARCH),
+    ],
+)
+def test_cache_clear_case_insensitive(mock_cache_manager, type_input, expected_enum):
     """Test that cache type is case-insensitive."""
     with patch("app.tools.cache_tools.get_cache_manager", return_value=mock_cache_manager):
-        # Test uppercase
-        result = cache_clear_impl(type="METADATA")
+        result = cache_clear_impl(type=type_input)
         assert result["status"] == "success"
-        mock_cache_manager.clear.assert_called_with(CacheType.METADATA)
-
-        # Reset mock
-        mock_cache_manager.reset_mock()
-
-        # Test mixed case
-        result = cache_clear_impl(type="TeXt")
-        assert result["status"] == "success"
-        mock_cache_manager.clear.assert_called_with(CacheType.TEXT)
-
+        mock_cache_manager.clear.assert_called_once_with(expected_enum)
 
 @pytest.mark.unit
 def test_cache_stats_empty_cache(mock_cache_manager):

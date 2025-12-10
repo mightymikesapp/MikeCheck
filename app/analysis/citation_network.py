@@ -102,10 +102,17 @@ class CitationNetworkBuilder:
         depth_map[root_citation] = 0
 
         # Create treatment lookup
-        treatment_map = {}
+        treatment_map: dict[str, dict[str, object]] = {}
         if treatments:
             for treatment in treatments:
-                citing_citation = self._extract_citation(treatment.get("citing_case", {}))
+                if not isinstance(treatment, dict):
+                    continue
+
+                citing_case = treatment.get("citing_case")
+                if not isinstance(citing_case, dict):
+                    continue
+
+                citing_citation = self._extract_citation(citing_case)
                 treatment_map[citing_citation] = treatment
 
         # Add citing cases as nodes and edges
@@ -122,16 +129,25 @@ class CitationNetworkBuilder:
             depth_map[citing_citation] = 1  # Direct citations are depth 1
 
             # Get treatment info if available
-            treatment_info = treatment_map.get(citing_citation, {})
+            treatment_info: dict[str, object] | None = treatment_map.get(citing_citation)
+            treatment_raw = treatment_info.get("treatment") if isinstance(treatment_info, dict) else None
+            confidence_value = (
+                treatment_info.get("confidence") if isinstance(treatment_info, dict) else None
+            )
+            excerpt_value = treatment_info.get("excerpt") if isinstance(treatment_info, dict) else None
+
+            treatment_str = str(treatment_raw) if isinstance(treatment_raw, str) else None
+            confidence = float(confidence_value) if isinstance(confidence_value, (int, float)) else 0.0
+            excerpt = excerpt_value if isinstance(excerpt_value, str) else ""
 
             # Create edge from citing case to root case
             edge = CitationEdge(
                 from_citation=citing_citation,
                 to_citation=root_citation,
                 depth=1,
-                treatment=treatment_info.get("treatment"),
-                confidence=treatment_info.get("confidence", 0.0),
-                excerpt=treatment_info.get("excerpt", ""),
+                treatment=treatment_str,
+                confidence=confidence,
+                excerpt=excerpt,
             )
             edges.append(edge)
 
@@ -186,15 +202,24 @@ class CitationNetworkBuilder:
         citation = self._extract_citation(case)
 
         # Extract opinion IDs
-        opinions = case.get("opinions", [])
-        opinion_ids = [op.get("id") for op in opinions if op.get("id")]
+        opinions = case.get("opinions", []) if isinstance(case, dict) else []
+        opinion_ids = [
+            op_id
+            for opinion in opinions
+            if isinstance(opinion, dict)
+            for op_id in [opinion.get("id")]
+            if isinstance(op_id, int)
+        ]
+
+        cluster_id_value = case.get("cluster_id") if isinstance(case, dict) else None
+        cluster_id = cluster_id_value if isinstance(cluster_id_value, int) else None
 
         return CaseNode(
             citation=citation,
             case_name=case.get("caseName", "Unknown Case"),
             date_filed=case.get("dateFiled"),
             court=case.get("court"),
-            cluster_id=case.get("cluster_id"),
+            cluster_id=cluster_id,
             opinion_ids=opinion_ids,
             metadata={
                 "status": case.get("status"),

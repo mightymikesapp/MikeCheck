@@ -4,6 +4,7 @@ This module provides heuristics to map CourtListener court IDs
 to simplified hierarchical levels (SCOTUS, Circuit, District, State).
 """
 
+# Standard library imports
 import re
 from enum import Enum
 

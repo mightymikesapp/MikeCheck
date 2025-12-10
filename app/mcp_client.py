@@ -265,8 +265,8 @@ class CourtListenerClient:
 
         # Check cache
         cached_opinion = self.cache_manager.get(CacheType.METADATA, cache_key)
-        if cached_opinion:
-            return cast(dict[str, Any], cached_opinion)
+        if cached_opinion is not None:
+            return cast(CourtListenerOpinion, cached_opinion)
 
         with log_operation(
             logger,
@@ -281,7 +281,7 @@ class CourtListenerClient:
                     f"opinions/{opinion_id}/",
                     headers=self._get_headers(),
                 )
-                data = cast(dict[str, Any], response.json())
+                data = cast(CourtListenerOpinion, response.json())
 
                 # Write cache
                 self.cache_manager.set(CacheType.METADATA, cache_key, data)
@@ -345,8 +345,9 @@ class CourtListenerClient:
                 ]
 
                 for field in text_fields:
-                    if opinion.get(field):
-                        text = str(opinion[field])
+                    text_value = opinion.get(field)
+                    if text_value:
+                        text = str(text_value)
                         log_event(
                             logger,
                             f"Retrieved {len(text)} chars of text from field '{field}'",
@@ -407,8 +408,8 @@ class CourtListenerClient:
 
         cache_key = {"citation_lookup": citation}
         cached_result = self.cache_manager.get(CacheType.SEARCH, cache_key)
-        if cached_result:
-            return cast(dict[str, Any], cached_result)
+        if cached_result is not None:
+            return cast(CourtListenerCase, cached_result)
 
         with log_operation(
             logger,
@@ -424,15 +425,24 @@ class CourtListenerClient:
                     params=params,
                     headers=self._get_headers(),
                 )
-                data = cast(dict[str, Any], response.json())
+                data = response.json()
+                results_raw = data.get("results", []) if isinstance(data, dict) else []
+                case_results = [
+                    cast(CourtListenerCase, result)
+                    for result in results_raw
+                    if isinstance(result, dict)
+                ]
 
-                if not data.get("results"):
-                    return cast(CourtListenerCase, {"error": "Citation not found", "citation": citation})
+                if not case_results:
+                    return cast(
+                        CourtListenerCase,
+                        {"citation": [citation], "caseName": "Citation not found"},
+                    )
 
                 # Try to find the case that HAS this citation (not just mentions it)
                 # Look for the citation in the case's own citation list
-                result_to_return = None
-                for result in data["results"]:
+                result_to_return: CourtListenerCase | None = None
+                for result in case_results:
                     case_citations = result.get("citation", [])
                     if isinstance(case_citations, list):
                         # Normalize citations for comparison
@@ -462,11 +472,13 @@ class CourtListenerClient:
                         query_params=params,
                         event="lookup_citation_fallback",
                     )
-                    result_to_return = data["results"][0]
+                    result_to_return = case_results[0]
+
+                assert result_to_return is not None
 
                 if self.settings.courtlistener_search_cache_enabled:
                     self.cache_manager.set(CacheType.SEARCH, cache_key, result_to_return)
-                return cast(dict[str, Any], result_to_return)
+                return result_to_return
 
             except httpx.HTTPError as e:
                 log_event(
@@ -498,7 +510,7 @@ class CourtListenerClient:
         cache_key = {"citing_cases": citation, "limit": limit}
         cached_results = self.cache_manager.get(CacheType.SEARCH, cache_key)
         if cached_results is not None:
-            return cast(dict[str, Any], cached_results)
+            return cast(dict[str, object], cached_results)
 
         query_attempts = [
             f'"{citation}"',  # Simple quoted search - finds cases mentioning citation
@@ -537,17 +549,28 @@ class CourtListenerClient:
 
             # Run searches in parallel
             search_tasks = [_perform_search(q) for q in query_attempts]
-            results = await asyncio.gather(*search_tasks, return_exceptions=True)
+            results = cast(
+                list[tuple[str, dict[str, Any] | None, Exception | None] | Exception],
+                await asyncio.gather(*search_tasks, return_exceptions=True),
+            )
+
+            successful_results: list[tuple[str, dict[str, Any]]] = []
+            error_results: list[tuple[str, Exception]] = []
 
             for i, result in enumerate(results):
-                # Handle potential task exception wrapper
                 if isinstance(result, Exception):
-                    query = query_attempts[i]
-                    data = None
-                    error = result
-                else:
-                    query, data, error = result
+                    error_results.append((query_attempts[i], result))
+                    continue
 
+                query, data, error = result
+                if error is not None:
+                    error_results.append((query, error))
+                    continue
+
+                if data is not None:
+                    successful_results.append((query, data))
+
+            for query, error in error_results:
                 params = {
                     "q": query,
                     "type": "o",
@@ -555,83 +578,85 @@ class CourtListenerClient:
                     "hit": min(limit, 100),
                 }
 
-                if error:
-                    # Handle error
-                    error_msg = str(error)
-                    if isinstance(error, httpx.HTTPError):
-                         status_code = (
-                            error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
-                        )
-                    else:
-                        status_code = None
-
-                    failed_requests.append(
-                        {
-                            "url": f"{self.base_url}search/",
-                            "params": params,
-                            "status": status_code,
-                            "message": error_msg,
-                        }
+                error_msg = str(error)
+                if isinstance(error, httpx.HTTPError):
+                    status_code = (
+                        error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
                     )
-                    confidence = max(confidence - 0.2, 0.3)
-                    warning_msg = f"Query '{query}' failed with error: {error_msg}."
+                else:
+                    status_code = None
+
+                failed_requests.append(
+                    {
+                        "url": f"{self.base_url}search/",
+                        "params": params,
+                        "status": status_code,
+                        "message": error_msg,
+                    }
+                )
+                confidence = max(confidence - 0.2, 0.3)
+                warning_msg = f"Query '{query}' failed with error: {error_msg}."
+                warnings.append(warning_msg)
+                log_event(
+                    logger,
+                    warning_msg,
+                    level=logging.ERROR,
+                    tool_name="find_citing_cases",
+                    request_id=request_id,
+                    query_params=params,
+                    event="find_citing_cases_retry_error",
+                )
+
+            for query, data in successful_results:
+                params = {
+                    "q": query,
+                    "type": "o",
+                    "order_by": "dateFiled desc",
+                    "hit": min(limit, 100),
+                }
+
+                search_results_raw = data.get("results", []) if isinstance(data, dict) else []
+                search_results: list[CourtListenerCase] = [
+                    cast(CourtListenerCase, result)
+                    for result in search_results_raw
+                    if isinstance(result, dict)
+                ]
+
+                if search_results:
+                    aggregated_results.extend(search_results)
+                    log_event(
+                        logger,
+                        "Found citing cases",
+                        tool_name="find_citing_cases",
+                        request_id=request_id,
+                        query_params=params,
+                        citation_count=len(search_results),
+                        event="find_citing_cases_success",
+                    )
+                else:
+                    warning_msg = f"Query '{query}' yielded no results."
                     warnings.append(warning_msg)
                     log_event(
                         logger,
                         warning_msg,
-                        level=logging.ERROR,
+                        level=logging.WARNING,
                         tool_name="find_citing_cases",
                         request_id=request_id,
                         query_params=params,
-                        event="find_citing_cases_retry_error",
+                        event="find_citing_cases_retry",
                     )
-                    failed_requests.append(
-                        {
-                            "query": query,
-                            "params": params,
-                            "error": error_msg,
-                            "status": status_code,
-                        }
-                    )
-                else:
-                    # Handle success
-                    search_results = data.get("results", []) if data else []
-                    if search_results:
-                        aggregated_results.extend(search_results)
-                        log_event(
-                            logger,
-                            "Found citing cases",
-                            tool_name="find_citing_cases",
-                            request_id=request_id,
-                            query_params=params,
-                            citation_count=len(search_results),
-                            event="find_citing_cases_success",
-                        )
-                        # We don't break early in parallel execution, we gather all results
-                    else:
-                        warning_msg = (
-                            f"Query '{query}' yielded no results."
-                        )
-                        warnings.append(warning_msg)
-                        log_event(
-                            logger,
-                            warning_msg,
-                            level=logging.WARNING,
-                            tool_name="find_citing_cases",
-                            request_id=request_id,
-                            query_params=params,
-                            event="find_citing_cases_retry",
-                        )
 
             # Deduplicate results while preserving order
             seen_ids: set[Any] = set()
             deduped_results: list[CourtListenerCase] = []
-            for result in aggregated_results:
-                identifier = result.get("id") or result.get("absolute_url") or id(result)
+            for case_result in aggregated_results:
+                identifier = (
+                    case_result.get("id") or case_result.get("absolute_url") or id(case_result)
+                )
                 if identifier in seen_ids:
                     continue
                 seen_ids.add(identifier)
-                deduped_results.append(result)
+                deduped_results.append(case_result)
 
             if deduped_results:
                 deduped_results = deduped_results[:limit]

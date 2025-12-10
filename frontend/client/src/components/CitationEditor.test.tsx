@@ -48,4 +48,19 @@ describe('CitationEditor Component', () => {
     expect(screen.getByText(/Issues Found/i)).toBeInTheDocument();
     expect(screen.getByText(/Fix It:/i)).toBeInTheDocument();
   });
+
+  it('applies corrections when clicking Fix It', async () => {
+    render(<CitationEditor />);
+    const textarea = screen.getByPlaceholderText(/Type your citations here/i) as HTMLTextAreaElement;
+
+    const invalidText = 'see Roe v. Wade, 410 U.S. 113 (1973)';
+    const correctedText = 'See Roe v. Wade, 410 U.S. 113 (1973)';
+
+    fireEvent.change(textarea, { target: { value: invalidText } });
+
+    const fixButton = await screen.findByRole('button', { name: `Fix It: ${correctedText}` });
+    fireEvent.click(fixButton);
+
+    expect(textarea.value).toBe(correctedText);
+  });
 });

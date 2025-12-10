@@ -1,14 +1,13 @@
 """MCP tools for citation network analysis."""
 
 import logging
-from typing import Any, cast, Literal
+from typing import Any, Literal, cast
 
 from fastmcp import FastMCP
 
 from ..analysis.citation_network import CitationNetworkBuilder
 from ..analysis.mermaid_generator import MermaidGenerator
 from ..analysis.treatment_classifier import TreatmentClassifier
-from ..config import get_settings
 from ..logging_config import tool_logging
 from ..logging_utils import log_event, log_operation
 from ..mcp_client import get_client

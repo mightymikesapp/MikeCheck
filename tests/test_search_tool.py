@@ -185,7 +185,7 @@ def test_vector_store_lazy_initialization():
         # BUT, since we modified search.py to do 'from app.analysis.search.vector_store import LegalVectorStore',
         # we can patch it there. However, `sys.modules` patching is safer for local imports.
 
-        with patch("app.analysis.search.vector_store.LegalVectorStore", return_value=mock_store_instance) as mock_cls:
+        with patch("app.analysis.search.vector_store.LegalVectorStore", return_value=mock_store_instance):
             # Reset global
             import app.tools.search
             app.tools.search._vector_store_instance = None

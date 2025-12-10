@@ -341,10 +341,10 @@ async def check_api_status(request_id: str | None = None) -> dict[str, Any]:
         latency = time.time() - start_time
 
         if "error" in result:
-             return {
+            return {
                 "status": "error",
                 "error": result["error"],
-                "latency_seconds": latency
+                "latency_seconds": latency,
             }
 
         return {

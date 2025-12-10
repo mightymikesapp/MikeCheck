@@ -11,7 +11,7 @@ import uuid
 from collections import defaultdict
 from html import escape
 from itertools import cycle
-from typing import Any, Literal
+from typing import Any
 
 from app.analysis.court_mapper import CourtLevel, get_court_level
 from app.types import CitationNetworkResult
@@ -311,7 +311,7 @@ class MermaidGenerator:
                 continue
 
             lines.append(f"    subgraph {level.name}")
-            lines.append(f"      direction TB")
+            lines.append("      direction TB")
 
             for node in nodes:
                 node_id = node_map[node["citation"]]

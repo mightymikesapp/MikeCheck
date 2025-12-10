@@ -61,12 +61,6 @@ def test_negation_handling(classifier):
 
 def test_court_hierarchy_weighting(classifier):
     """Test court hierarchy weighting."""
-    # SCOTUS (weight 1.0)
-    scotus_case = {"court": "scotus", "caseName": "Test Case"}
-    signals = [
-        # Create a dummy signal
-        type("Signal", (), {"signal": "overruled", "treatment_type": TreatmentType.NEGATIVE})()
-    ]
     # Mock extract_signals to return our dummy signal
     # But wait, classify_treatment calls extract_signals internally.
     # We can test _aggregate_signals directly or mock extract_signals.

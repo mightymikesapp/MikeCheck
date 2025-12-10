@@ -304,6 +304,7 @@ class TestToolLoggingDecorator:
             assert result == "hello-20"
             # We should have start and end events
             events = [r.getMessage() for r in log_records if hasattr(r, "event")]
+            assert len(events) == 2
         finally:
             logger.removeHandler(handler)
 
@@ -365,8 +366,6 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_sets_correlation_id(self):
         """Test that tool_logging decorator sets a correlation ID."""
-        logger = logging.getLogger("test")
-
         @tool_logging("test_tool")
         def test_func():
             # Get the correlation ID from context
@@ -378,8 +377,6 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_sets_metadata(self):
         """Test that tool_logging decorator sets request metadata."""
-        logger = logging.getLogger("test")
-
         @tool_logging("test_tool")
         def test_func():
             # Get the metadata from context
@@ -401,8 +398,6 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_with_citation_argument(self):
         """Test that tool_logging extracts citation from function arguments."""
-        logger = logging.getLogger("test")
-
         @tool_logging("test_tool")
         def test_func(citation: str):
             return request_metadata_ctx.get()
@@ -412,8 +407,6 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_with_citation_id_argument(self):
         """Test that tool_logging extracts citation_id from function arguments."""
-        logger = logging.getLogger("test")
-
         @tool_logging("test_tool")
         def test_func(citation_id: str):
             return request_metadata_ctx.get()
@@ -423,8 +416,6 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_with_citation_text_argument(self):
         """Test that tool_logging extracts citation_text from function arguments."""
-        logger = logging.getLogger("test")
-
         @tool_logging("test_tool")
         def test_func(citation_text: str):
             return request_metadata_ctx.get()
@@ -471,8 +462,6 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_cleans_up_context(self):
         """Test that tool_logging decorator cleans up context after execution."""
-        logger = logging.getLogger("test")
-
         @tool_logging("test_tool")
         def test_func():
             pass

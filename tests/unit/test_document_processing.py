@@ -1,6 +1,6 @@
-import pytest
 from app.analysis import document_processing
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
+
 
 def test_extract_citations_simple():
     text = "See 410 U.S. 113 for details."

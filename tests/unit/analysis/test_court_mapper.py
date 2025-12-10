@@ -1,7 +1,9 @@
 """Tests for the court level mapper."""
 
 import pytest
+
 from app.analysis.court_mapper import CourtLevel, get_court_level
+
 
 @pytest.mark.parametrize(
     "court_id,expected",

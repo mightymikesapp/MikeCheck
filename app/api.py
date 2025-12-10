@@ -18,7 +18,6 @@ from app.analysis.document_processing import extract_citations, extract_text_fro
 from app.tools.research import run_research_pipeline_impl
 from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
-from app.types import TreatmentResult
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

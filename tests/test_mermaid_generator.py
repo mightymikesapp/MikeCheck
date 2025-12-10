@@ -1,7 +1,7 @@
 """Tests for Mermaid diagram generator."""
 
+
 import pytest
-import json
 
 from app.analysis.mermaid_generator import MermaidGenerator
 

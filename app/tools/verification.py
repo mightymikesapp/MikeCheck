@@ -4,10 +4,12 @@ This module provides MCP tools for verifying quotes against their cited sources,
 essential for maintaining academic integrity in legal scholarship.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastmcp import FastMCP
 
@@ -16,7 +18,8 @@ from app.logging_config import tool_logging
 from app.logging_utils import log_event, log_operation
 from app.mcp_client import get_client
 from app.mcp_types import ToolPayload
-from app.types import QuoteGrounding, QuoteVerificationResult
+if TYPE_CHECKING:
+    from app.types import QuoteGrounding, QuoteVerificationResult
 
 logger = logging.getLogger(__name__)
 
@@ -294,15 +297,23 @@ async def verify_quote_impl(
 
             if pinpoint and section_hint:
                 target_span = section_hint.get("slice_span")
-                if target_span:
-                    in_range = target_span["start"] <= absolute_start <= target_span["end"]
+                if (
+                    isinstance(target_span, dict)
+                    and isinstance(target_span.get("start"), int)
+                    and isinstance(target_span.get("end"), int)
+                ):
+                    in_range = (
+                        target_span["start"] <= absolute_start <= target_span["end"]
+                    )
                     grounding["alignment"]["pinpoint_in_range"] = in_range
                     if not in_range:
                         mismatch_reasons.append(
                             "Best match falls outside pinpoint slice boundaries"
                         )
-                if section_hint.get("error"):
-                    mismatch_reasons.append(section_hint["error"])
+
+                error_hint = section_hint.get("error")
+                if isinstance(error_hint, str):
+                    mismatch_reasons.append(error_hint)
 
             grounding["alignment"]["mismatch_reasons"] = mismatch_reasons
             response["grounding"] = grounding

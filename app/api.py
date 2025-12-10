@@ -11,9 +11,8 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates, TemplateResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from starlette.responses import TemplateResponse
 
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
 from app.tools.research import run_research_pipeline_impl
@@ -72,7 +71,7 @@ async def home(request: Request) -> HTMLResponse:
 @app.post("/analyze/upload")
 async def upload_document(
     request: Request, file: UploadFile = File(...)
-) -> TemplateResponse | dict[str, Any]:
+) -> Any:
     """Handle document upload and parsing."""
     try:
         content = await file.read()
@@ -133,7 +132,7 @@ async def analyze_citation(request: AnalysisRequest) -> dict[str, Any]:
 @app.post("/herding/analyze_html")
 async def analyze_citation_html(
     request: Request, citation: str = Form(...), index: int = Form(0)
-) -> TemplateResponse:
+) -> Any:
     """Run treatment analysis on a citation (HTMX)."""
     try:
         result = await check_case_validity_impl(citation)
@@ -176,7 +175,7 @@ async def run_research(request: ResearchRequest) -> dict[str, Any]:
 @app.post("/herding/details_html")
 async def analyze_citation_details(
     request: Request, citation: str = Form(...)
-) -> TemplateResponse:
+) -> Any:
     """Get detailed treatment analysis for modal."""
     try:
         # Re-run or get cached analysis
@@ -195,7 +194,7 @@ async def analyze_citation_details(
 @app.post("/search/similar_html")
 async def find_similar_html(
     request: Request, query: str = Form(...)
-) -> TemplateResponse:
+) -> Any:
     """Find similar cases returning HTML."""
     try:
         # Use semantic search

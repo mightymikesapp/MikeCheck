@@ -1,12 +1,15 @@
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Network, 
-  Settings, 
+import {
+  LayoutDashboard,
+  FileText,
+  Network,
+  Settings,
   ShieldCheck,
-  Search
+  Search,
+  Menu,
+  X,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -15,6 +18,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -23,10 +27,21 @@ export default function Layout({ children }: LayoutProps) {
     { icon: Search, label: "Research", path: "/research" },
   ];
 
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location]);
+
   return (
     <div className="min-h-screen bg-background flex font-sans">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-sidebar flex flex-col fixed h-full z-10">
+      <aside
+        id="sidebar"
+        className={cn(
+          "w-64 border-r border-border bg-sidebar flex flex-col fixed inset-y-0 left-0 h-full z-20 transform transition-transform duration-300",
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full",
+          "lg:translate-x-0"
+        )}
+      >
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">
@@ -77,8 +92,29 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-10 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Main Content */}
-      <main className="flex-1 ml-64 min-h-screen flex flex-col">
+      <main className="flex-1 min-h-screen flex flex-col transition-[margin-left] duration-300 lg:ml-64">
+        <div className="p-4 lg:hidden">
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent"
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+            aria-expanded={isSidebarOpen}
+            aria-controls="sidebar"
+            aria-label="Toggle navigation menu"
+          >
+            {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <span>Menu</span>
+          </button>
+        </div>
         {children}
       </main>
     </div>

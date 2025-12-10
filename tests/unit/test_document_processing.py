@@ -1,5 +1,6 @@
 import pytest
-from app.analysis.document_processing import extract_citations
+from app.analysis import document_processing
+from app.analysis.document_processing import extract_citations, extract_text_from_pdf
 
 def test_extract_citations_simple():
     text = "See 410 U.S. 113 for details."
@@ -22,3 +23,22 @@ def test_extract_citations_duplicates():
     citations = extract_citations(text)
     assert len(citations) == 1
     assert citations[0] == "410 U.S. 113"
+
+
+def test_extract_text_from_pdf_with_none_page(monkeypatch):
+    class FakePage:
+        def __init__(self, text: str | None):
+            self._text = text
+
+        def extract_text(self) -> str | None:
+            return self._text
+
+    class FakeReader:
+        def __init__(self, *_: object, **__: object) -> None:
+            self.pages = [FakePage(None)]
+
+    monkeypatch.setattr(document_processing, "PdfReader", FakeReader)
+
+    result = extract_text_from_pdf(b"irrelevant")
+
+    assert result == ""

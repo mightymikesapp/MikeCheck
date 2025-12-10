@@ -11,7 +11,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates, TemplateResponse
 from pydantic import BaseModel
 from starlette.responses import TemplateResponse
 
@@ -133,7 +133,7 @@ async def analyze_citation(request: AnalysisRequest) -> dict[str, Any]:
 @app.post("/herding/analyze_html")
 async def analyze_citation_html(
     request: Request, citation: str = Form(...), index: int = Form(0)
-) -> HTMLResponse:
+) -> TemplateResponse:
     """Run treatment analysis on a citation (HTMX)."""
     try:
         result = await check_case_validity_impl(citation)
@@ -176,7 +176,7 @@ async def run_research(request: ResearchRequest) -> dict[str, Any]:
 @app.post("/herding/details_html")
 async def analyze_citation_details(
     request: Request, citation: str = Form(...)
-) -> HTMLResponse:
+) -> TemplateResponse:
     """Get detailed treatment analysis for modal."""
     try:
         # Re-run or get cached analysis
@@ -195,7 +195,7 @@ async def analyze_citation_details(
 @app.post("/search/similar_html")
 async def find_similar_html(
     request: Request, query: str = Form(...)
-) -> HTMLResponse:
+) -> TemplateResponse:
     """Find similar cases returning HTML."""
     try:
         # Use semantic search

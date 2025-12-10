@@ -304,7 +304,7 @@ class TestToolLoggingDecorator:
             assert result == "hello-20"
             # We should have start and end events
             events = [r.getMessage() for r in log_records if hasattr(r, "event")]
-            assert len(events) >= 2
+            assert len(events) == 2
         finally:
             logger.removeHandler(handler)
 

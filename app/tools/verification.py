@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastmcp import FastMCP
 
@@ -18,8 +18,7 @@ from app.logging_config import tool_logging
 from app.logging_utils import log_event, log_operation
 from app.mcp_client import get_client
 from app.mcp_types import ToolPayload
-if TYPE_CHECKING:
-    from app.types import QuoteGrounding, QuoteVerificationResult
+from app.types import QuoteGrounding, QuoteVerificationResult
 
 logger = logging.getLogger(__name__)
 

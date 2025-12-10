@@ -18,9 +18,8 @@ cache_server: FastMCP[ToolPayload] = FastMCP("Cache Tools")
 logger = logging.getLogger(__name__)
 
 
-@cache_server.tool()
-@tool_logging("cache_stats")
-def cache_stats() -> dict[str, Any]:
+# Implementation functions (can be called directly or via MCP tools)
+def cache_stats_impl() -> dict[str, Any]:
     """Get current cache statistics.
 
     Returns:
@@ -38,9 +37,7 @@ def cache_stats() -> dict[str, Any]:
     return stats
 
 
-@cache_server.tool()
-@tool_logging("cache_clear")
-def cache_clear(type: str | None = None) -> dict[str, Any]:
+def cache_clear_impl(type: str | None = None) -> dict[str, Any]:
     """Clear the cache.
 
     Args:
@@ -76,3 +73,30 @@ def cache_clear(type: str | None = None) -> dict[str, Any]:
         "message": message,
         "files_cleared": count
     }
+
+
+# MCP tool wrappers
+@cache_server.tool()
+@tool_logging("cache_stats")
+def cache_stats() -> dict[str, Any]:
+    """Get current cache statistics.
+
+    Returns:
+        Dictionary containing cache hits, misses, file count, and size.
+    """
+    return cache_stats_impl()
+
+
+@cache_server.tool()
+@tool_logging("cache_clear")
+def cache_clear(type: str | None = None) -> dict[str, Any]:
+    """Clear the cache.
+
+    Args:
+        type: Specific cache type to clear ('metadata', 'text', 'search').
+              If omitted, clears all cache.
+
+    Returns:
+        Summary of cleared files.
+    """
+    return cache_clear_impl(type)

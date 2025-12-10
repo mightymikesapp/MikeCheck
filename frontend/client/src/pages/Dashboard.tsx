@@ -3,13 +3,16 @@ import Layout from "@/components/Layout";
 import DocumentUploader from "@/components/DocumentUploader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  ArrowRight, 
-  Clock, 
-  FileText, 
-  ShieldCheck, 
+import {
+  ArrowRight,
+  Clock,
+  FileText,
+  ShieldCheck,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  Search,
+  Network,
+  CheckCircle2
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -172,5 +175,3 @@ export default function Dashboard() {
     </Layout>
   );
 }
-
-import { Search, Network, CheckCircle2 } from "lucide-react";

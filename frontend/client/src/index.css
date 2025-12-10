@@ -60,6 +60,13 @@
   --chart-3: oklch(0.68 0.16 150); /* Green */
   --chart-4: oklch(0.5 0.05 260); /* Medium Blue */
   --chart-5: oklch(0.8 0.02 260); /* Light Blue */
+
+  --color-blue-50: oklch(0.96 0.02 250);
+  --color-blue-300: oklch(0.78 0.12 250);
+  --color-blue-500: oklch(0.63 0.18 250);
+  --color-blue-600: oklch(0.55 0.17 250);
+  --color-blue-700: oklch(0.47 0.15 250);
+  --color-blue-800: oklch(0.38 0.13 250);
   
   --radius: 0rem; /* Sharp corners for Swiss Style */
   

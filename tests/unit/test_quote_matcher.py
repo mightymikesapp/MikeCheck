@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.analysis.quote_matcher import QuoteMatcher, QuoteMatch, QuoteVerificationResult
+from app.analysis.quote_matcher import QuoteMatcher
 
 
 @pytest.fixture

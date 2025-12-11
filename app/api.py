@@ -4,10 +4,10 @@ Exposes the core legal research tools via REST endpoints.
 """
 
 import logging
-from typing import Any, List, Optional
+from typing import Any, Awaitable, Callable, List, Optional
 
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,13 +30,25 @@ app = FastAPI(
 )
 
 # Configure CORS
+# Restrict origins to prevent CSRF/unauthorized access from malicious sites
+# Since this is a local tool, we only allow localhost access by default
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all for simplicity during dev
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # Setup Templates
 templates = Jinja2Templates(directory="app/templates")

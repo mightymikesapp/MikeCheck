@@ -6,6 +6,7 @@ This module analyzes how citing cases treat a target case, classifying treatment
 - Neutral: Case is cited without clear positive or negative treatment
 """
 
+import functools
 import logging
 import re
 from dataclasses import dataclass, field
@@ -15,6 +16,12 @@ from collections import defaultdict
 from app.types import CourtListenerCase, TreatmentStats
 
 logger = logging.getLogger(__name__)
+
+WELL_KNOWN_CASES = {
+    "410 U.S. 113": "Roe v. Wade",
+    "539 U.S. 558": "Lawrence v. Texas",
+    "505 U.S. 833": "Planned Parenthood v. Casey",
+}
 
 
 class TreatmentType(Enum):
@@ -117,14 +124,56 @@ class TreatmentClassifier:
 
     def __init__(self) -> None:
         """Initialize the treatment classifier."""
-        self.negative_patterns = {
-            re.compile(pattern, re.IGNORECASE): (signal, weight)
-            for pattern, (signal, weight) in NEGATIVE_SIGNALS.items()
-        }
-        self.positive_patterns = {
-            re.compile(pattern, re.IGNORECASE): (signal, weight)
-            for pattern, (signal, weight) in POSITIVE_SIGNALS.items()
-        }
+        # Optimize signal patterns: Combine all into one regex
+        # Sort by length descending to ensure specific patterns match first
+        # (e.g. "declined to follow" before "follow")
+        all_patterns = []
+        for p, (s, w) in NEGATIVE_SIGNALS.items():
+            all_patterns.append((p, s, w, TreatmentType.NEGATIVE))
+        for p, (s, w) in POSITIVE_SIGNALS.items():
+            all_patterns.append((p, s, w, TreatmentType.POSITIVE))
+
+        all_patterns.sort(key=lambda x: len(x[0]), reverse=True)
+
+        regex_parts = []
+        self.group_map = {}
+        for i, (p, s, w, t) in enumerate(all_patterns):
+            # Strip leading/trailing \b for optimization to allow regex engine
+            # to check boundary once
+            pattern_body = p
+            if pattern_body.startswith(r"\b"):
+                pattern_body = pattern_body[2:]
+            if pattern_body.endswith(r"\b"):
+                pattern_body = pattern_body[:-2]
+
+            group_name = f"s_{i}"
+            regex_parts.append(f"(?P<{group_name}>{pattern_body})")
+            self.group_map[group_name] = (s, w, t)
+
+        # Combine all patterns into one regex wrapped in word boundaries
+        self.combined_signal_pattern = re.compile(
+            r"\b(?:" + "|".join(regex_parts) + r")\b", re.IGNORECASE
+        )
+
+        # Optimize negation patterns
+        # Strip \b from start as we wrap in \b
+        negation_patterns = [
+            r"not\s+$",
+            r"(?:did|does|do|will|would|could|can)\s+not\s+$",
+            r"(?:did|does|do|will|would|could|can)n't\s+$",
+            r"declined\s+to\s+$",
+            r"refused\s+to\s+$",
+        ]
+        self.negation_pattern = re.compile(
+            r"\b(?:" + "|".join(f"(?:{p})" for p in negation_patterns) + ")", re.IGNORECASE
+        )
+
+        # Optimize signal weight lookup (O(1))
+        self.signal_weights = {}
+        for s, w in NEGATIVE_SIGNALS.values():
+            self.signal_weights[(s, TreatmentType.NEGATIVE)] = w
+        for s, w in POSITIVE_SIGNALS.values():
+            self.signal_weights[(s, TreatmentType.POSITIVE)] = w
 
     def should_fetch_full_text(
         self,
@@ -168,6 +217,7 @@ class TreatmentClassifier:
                 return True
 
         return False
+        return bool(self.negation_pattern.search(preceding))
 
     def _get_court_weight(self, court_id: str | None) -> float:
         """Get weight multiplier based on court hierarchy."""
@@ -199,6 +249,37 @@ class TreatmentClassifier:
         self, text: str, citation: str, opinion_type: str = "majority"
     ) -> list[TreatmentSignal]:
         """Extract treatment signals from text mentioning the citation."""
+            return 0.6  # District courts
+
+        return 0.7  # State/other courts default
+
+    @functools.lru_cache(maxsize=128)
+    def _get_citation_patterns(self, citation: str) -> list[re.Pattern]:
+        """Get compiled regex patterns for a citation (cached)."""
+        citation_pattern = re.escape(citation).replace(r"\ ", r"\s+")
+        patterns = [
+            re.compile(citation_pattern, re.IGNORECASE),
+        ]
+
+        # Pattern 2: If citation is "XXX U.S. YYY", also try case name
+        us_cite_match = re.match(r"(\d+)\s+U\.?S\.?\s+(\d+)", citation, re.IGNORECASE)
+        if us_cite_match and citation in WELL_KNOWN_CASES:
+            case_name = WELL_KNOWN_CASES[citation]
+            patterns.append(
+                re.compile(re.escape(case_name).replace(r"\ ", r"\s+"), re.IGNORECASE)
+            )
+        return patterns
+
+    def extract_signals(self, text: str, citation: str) -> list[TreatmentSignal]:
+        """Extract treatment signals from text mentioning the citation.
+
+        Args:
+            text: Text to analyze
+            citation: The citation being analyzed
+
+        Returns:
+            List of treatment signals found
+        """
         signals: list[TreatmentSignal] = []
         contexts = self._extract_citation_contexts(text, citation)
 
@@ -232,6 +313,27 @@ class TreatmentClassifier:
                             opinion_type=opinion_type,
                         )
                     )
+            # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
+            for match in self.combined_signal_pattern.finditer(context):
+                group_name = match.lastgroup
+                if not group_name:
+                    continue
+
+                signal, _, treatment_type = self.group_map[group_name]
+
+                # Check for negation
+                if self._is_negated(context, match.start()):
+                    continue
+
+                signals.append(
+                    TreatmentSignal(
+                        signal=signal,
+                        treatment_type=treatment_type,
+                        position=position,
+                        context=context[:200],  # First 200 chars
+                    )
+                )
+
         return signals
 
     def classify_treatment(
@@ -480,6 +582,9 @@ class TreatmentClassifier:
                     re.compile(re.escape(case_name).replace(r"\ ", r"\s+"), re.IGNORECASE)
                 )
 
+        # Get cached patterns
+        patterns_to_try = self._get_citation_patterns(citation)
+
         for pattern in patterns_to_try:
             for match in pattern.finditer(text):
                 start = max(0, match.start() - window)
@@ -527,6 +632,17 @@ class TreatmentClassifier:
             if sig == signal:
                 return weight
         return 0.5
+        """Get the weight for a signal.
+
+        Args:
+            signal: Signal text
+            treatment_type: Type of treatment
+
+        Returns:
+            Weight between 0 and 1
+        """
+        # Optimized O(1) lookup
+        return self.signal_weights.get((signal, treatment_type), 0.5)
 
     def _extract_best_excerpt(
         self,

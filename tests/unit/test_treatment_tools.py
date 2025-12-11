@@ -1,17 +1,18 @@
 """Unit tests for treatment analysis tools."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
+import pytest
+
+from app.analysis.treatment_classifier import TreatmentType
 from app.tools.treatment import (
+    _coerce_cases,
+    _coerce_failed_requests,
+    _coerce_incomplete_flag,
+    _coerce_warnings,
     check_case_validity_impl,
     get_citing_cases_impl,
-    _coerce_failed_requests,
-    _coerce_warnings,
-    _coerce_incomplete_flag,
-    _coerce_cases,
 )
-from app.analysis.treatment_classifier import TreatmentType
 
 
 # Test helper/coercion functions

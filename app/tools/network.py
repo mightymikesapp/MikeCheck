@@ -67,7 +67,7 @@ async def build_citation_network_impl(
         if not isinstance(raw_results, list):
             return {
                 "error": "Unexpected response format when fetching citing cases.",
-                "citation": citation,
+                "root_citation": citation,
                 "nodes": [],
                 "edges": [],
                 "warnings": citing_cases_result.get("warnings", []),

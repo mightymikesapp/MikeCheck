@@ -12,6 +12,8 @@ from app.tools.network import (
     generate_citation_report_impl,
 )
 from app.analysis.treatment_classifier import TreatmentType
+from app.config import settings
+from app.errors import job_too_large_error
 
 
 # Test build_citation_network_impl
@@ -24,6 +26,19 @@ async def test_build_citation_network_impl_case_not_found(mock_client):
 
     assert "error" in result
     assert "Could not find case for citation" in result["error"]
+
+
+@pytest.mark.unit
+async def test_build_citation_network_impl_respects_max_nodes(
+    mock_client, monkeypatch
+):
+    """Return standardized error when requested nodes exceed limit."""
+
+    monkeypatch.setattr(settings, "max_total_network_nodes", 1)
+
+    result = await build_citation_network_impl("123 U.S. 456", max_nodes=5)
+
+    assert result == job_too_large_error()
 
 
 @pytest.mark.unit

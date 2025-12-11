@@ -8,6 +8,8 @@ from fastmcp import FastMCP
 from ..analysis.citation_network import CitationNetworkBuilder
 from ..analysis.mermaid_generator import MermaidGenerator
 from ..analysis.treatment_classifier import TreatmentClassifier
+from ..config import settings
+from ..errors import job_too_large_error
 from ..logging_config import tool_logging
 from ..logging_utils import log_event, log_operation
 from ..mcp_client import get_client
@@ -33,6 +35,18 @@ async def build_citation_network_impl(
         "max_nodes": max_nodes,
         "include_treatments": include_treatments,
     }
+
+    if max_nodes > settings.max_total_network_nodes:
+        log_event(
+            logger,
+            "Citation network request exceeds configured node limit",
+            tool_name="build_citation_network",
+            request_id=request_id,
+            query_params=query_params,
+            extra_context={"max_allowed": settings.max_total_network_nodes},
+            event="job_too_large",
+        )
+        return job_too_large_error()
 
     client = get_client()
 

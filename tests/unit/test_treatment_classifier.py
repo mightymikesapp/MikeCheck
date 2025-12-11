@@ -3,10 +3,9 @@
 import pytest
 
 from app.analysis.treatment_classifier import (
+    TreatmentAnalysis,
     TreatmentClassifier,
     TreatmentType,
-    TreatmentSignal,
-    TreatmentAnalysis,
 )
 
 

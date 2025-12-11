@@ -1,16 +1,17 @@
 """Unit tests for quote verification tools."""
 
-import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
-from app.tools.verification import (
-    _parse_pinpoint_number,
-    _extract_pinpoint_slice,
-    verify_quote_impl,
-    batch_verify_quotes_impl,
-)
+import pytest
+
 from app.config import settings
 from app.errors import job_too_large_error
+from app.tools.verification import (
+    _extract_pinpoint_slice,
+    _parse_pinpoint_number,
+    batch_verify_quotes_impl,
+    verify_quote_impl,
+)
 
 
 # Test _parse_pinpoint_number

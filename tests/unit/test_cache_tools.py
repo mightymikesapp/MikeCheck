@@ -1,7 +1,8 @@
 """Unit tests for cache management tools."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from app.cache import CacheManager, CacheType
 from app.tools.cache_tools import cache_clear_impl, cache_stats_impl

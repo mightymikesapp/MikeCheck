@@ -404,17 +404,16 @@ async def outline_support_pipeline_impl(
             ),
         )
 
-        related_cases = []
-        for result in search_results.get("results", [])[:related_limit]:
-            related_cases.append(
-                {
-                    "citation": result.get("citation"),
-                    "case_name": result.get("case_name"),
-                    "similarity_score": result.get("similarity_score"),
-                    "court": result.get("court"),
-                    "date_filed": result.get("date_filed"),
-                }
-            )
+        related_cases = [
+            {
+                "citation": result.get("citation"),
+                "case_name": result.get("case_name"),
+                "similarity_score": result.get("similarity_score"),
+                "court": result.get("court"),
+                "date_filed": result.get("date_filed"),
+            }
+            for result in search_results.get("results", [])[:related_limit]
+        ]
 
         network_nodes = network.get("nodes") or []
         related_network_nodes = [

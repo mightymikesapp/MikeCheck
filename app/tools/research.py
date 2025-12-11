@@ -14,6 +14,7 @@ from app.logging_utils import log_event, log_operation
 from app.mcp_client import get_client
 from app.mcp_types import ToolPayload
 from app.tools.network import build_citation_network_impl
+from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
 from app.tools.verification import batch_verify_quotes_impl
 
@@ -359,3 +360,145 @@ async def check_api_status(request_id: str | None = None) -> dict[str, Any]:
             "error": str(e),
             "latency_seconds": time.time() - start_time
         }
+
+
+async def outline_support_pipeline_impl(
+    topic: str,
+    primary_case: str,
+    related_limit: int = 5,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Generate a research outline combining semantic search and network context.
+
+    Args:
+        topic: Research topic or question to explore.
+        primary_case: Anchor citation for the outline.
+        related_limit: Maximum number of related authorities to include.
+
+    Returns:
+        Dictionary containing the markdown outline and structured sections.
+    """
+
+    settings = get_settings()
+    query_params = {
+        "topic": topic,
+        "primary_case": primary_case,
+        "related_limit": related_limit,
+    }
+
+    with log_operation(
+        logger,
+        tool_name="outline_support_pipeline",
+        request_id=request_id,
+        query_params=query_params,
+        event="outline_support_pipeline",
+    ):
+        search_results = await semantic_search_impl(query=topic, limit=related_limit)
+        network = await build_citation_network_impl(
+            citation=primary_case,
+            max_depth=settings.network_max_depth,
+            max_nodes=settings.max_citing_cases,
+            include_treatments=True,
+            request_id=request_id,
+        )
+
+        related_cases = []
+        for result in search_results.get("results", [])[:related_limit]:
+            related_cases.append(
+                {
+                    "citation": result.get("citation"),
+                    "case_name": result.get("case_name"),
+                    "similarity_score": result.get("similarity_score"),
+                    "court": result.get("court"),
+                    "date_filed": result.get("date_filed"),
+                }
+            )
+
+        network_nodes = network.get("nodes") or []
+        related_network_nodes = [
+            node for node in network_nodes if node.get("citation") != primary_case
+        ]
+        network_stats = network.get("statistics") or {}
+
+        outline_lines = [f"# Outline Support: {topic}"]
+        outline_lines.append("## Doctrines & Issues")
+        outline_lines.append(f"- Topic: {topic}")
+        outline_lines.append(
+            f"- Primary case: {primary_case} – {network.get('root_case_name', 'Unknown case')}"
+        )
+
+        outline_lines.append("\n## Related Authorities")
+        if related_cases:
+            for case in related_cases:
+                label = case.get("citation") or "Unknown citation"
+                outline_lines.append(
+                    f"- **{label}** ({case.get('case_name', 'Unknown case')}): "
+                    f"similarity {case.get('similarity_score', 0):.2f}"
+                )
+        else:
+            outline_lines.append("- No related authorities found")
+
+        outline_lines.append("\n## Citation Network Highlights")
+        if network.get("error"):
+            outline_lines.append(f"- Network error: {network['error']}")
+        else:
+            outline_lines.append(
+                f"- Scope: depth {settings.network_max_depth}, nodes capped at {settings.max_citing_cases}"
+            )
+            outline_lines.append(
+                f"- Graph: {network_stats.get('total_nodes', 0)} nodes, {network_stats.get('total_edges', 0)} edges"
+            )
+            if related_network_nodes:
+                outline_lines.append("- Notable citing cases:")
+                for node in related_network_nodes[: min(5, len(related_network_nodes))]:
+                    outline_lines.append(
+                        f"  - {node.get('citation', 'Unknown citation')} – {node.get('case_name', 'Unknown case')}"
+                    )
+            if network.get("warnings"):
+                outline_lines.append("- Warnings: " + "; ".join(network["warnings"]))
+
+        outline_lines.append(LEGAL_DISCLAIMER)
+        outline_markdown = "\n".join(outline_lines)
+
+        outline_payload = {
+            "outline_markdown": outline_markdown,
+            "topic": topic,
+            "primary_case": primary_case,
+            "primary_case_name": network.get("root_case_name"),
+            "related_cases": related_cases,
+            "citation_network": network,
+            "doctrines": [topic],
+            "network_statistics": network_stats,
+        }
+
+        log_event(
+            logger,
+            "Generated outline support package",
+            tool_name="outline_support_pipeline",
+            request_id=request_id,
+            query_params=query_params,
+            extra_context={
+                "related_count": len(related_cases),
+                "network_nodes": network_stats.get("total_nodes", 0),
+            },
+        )
+
+        return outline_payload
+
+
+@research_server.tool()
+@tool_logging("outline_support_pipeline")
+async def outline_support_pipeline(
+    topic: str,
+    primary_case: str,
+    related_limit: int = 5,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Generate a research outline combining semantic search and network context."""
+
+    return await outline_support_pipeline_impl(
+        topic=topic,
+        primary_case=primary_case,
+        related_limit=related_limit,
+        request_id=request_id,
+    )

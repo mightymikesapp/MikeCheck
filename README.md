@@ -509,7 +509,23 @@ print(f"Quote Verification: {pipeline_result['quote_verification']['verified_cou
 print(f"Network Nodes: {len(pipeline_result['citation_network']['nodes'])}")
 ```
 
-### Example 8: Manage Cache and Performance
+### Example 8: Build an Outline with Semantic + Network Context
+
+```python
+from app.tools.research import outline_support_pipeline
+
+outline = await outline_support_pipeline(
+    topic="qualified immunity limits for warrantless home entry",
+    primary_case="480 U.S. 321",
+    related_limit=4,
+)
+
+print(outline["outline_markdown"])
+```
+
+This produces a Markdown outline with doctrines/issues, the anchor case, semantically related authorities, and citation-network highlights (node/edge counts plus notable citing cases).
+
+### Example 9: Manage Cache and Performance
 
 ```python
 from app.tools.cache_tools import cache_stats, cache_clear

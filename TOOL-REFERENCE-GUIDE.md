@@ -468,6 +468,41 @@ pipeline = await run_research_pipeline(
 
 ---
 
+### `outline_support_pipeline(topic: str, primary_case: str, related_limit: int = 5) → dict`
+
+**Purpose**: Generate a Markdown outline that blends semantic search with citation-network context.
+
+**Parameters**:
+- `topic` (str): Research theme or question (e.g., "procedural due process for student discipline").
+- `primary_case` (str): Anchor citation to expand around.
+- `related_limit` (int): Maximum number of related authorities to include (default: 5).
+
+**Returns**:
+- `outline_markdown` (str): Ready-to-share outline covering doctrines, related cases, and network highlights.
+- `related_cases` (list): Semantic search matches with similarity scores and metadata.
+- `citation_network` (dict): Network expansion around the primary case, including statistics and warnings.
+- `doctrines` (list): Machine-readable doctrines/issues derived from the topic.
+
+**Example Use**:
+```python
+from app.tools.research import outline_support_pipeline
+
+outline = await outline_support_pipeline(
+    topic="fair use analysis for transformative musical sampling",
+    primary_case="510 U.S. 569",
+    related_limit=3,
+)
+
+print(outline["outline_markdown"])
+```
+
+**When to Use**:
+- Drafting section headings for briefs or memos.
+- Finding supportive authorities around a lead case.
+- Summarizing citation-network reach for a topic.
+
+---
+
 ### `issue_map(citations: list[str], legal_questions: list[str]) → dict`
 
 **Purpose**: Create an issue map linking key questions to cited authorities

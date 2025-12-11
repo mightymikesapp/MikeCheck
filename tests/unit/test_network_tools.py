@@ -49,6 +49,7 @@ async def test_build_citation_network_impl_unexpected_results(mock_client):
     assert result["error"].startswith("Unexpected response format")
     assert result["incomplete_data"] is True
     assert result["warnings"] == ["bad format"]
+    assert result["root_citation"] == "123 U.S. 456"
 
 
 @pytest.mark.unit

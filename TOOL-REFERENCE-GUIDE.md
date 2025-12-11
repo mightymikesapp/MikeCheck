@@ -479,6 +479,9 @@ pipeline = await run_research_pipeline(
 
 **Returns**:
 - `outline_markdown` (str): Ready-to-share outline covering doctrines, related cases, and network highlights.
+- `topic` (str): The original research topic provided.
+- `primary_case` (str): The anchor citation provided.
+- `primary_case_name` (str | None): The name of the primary case, if found.
 - `related_cases` (list): Semantic search matches with similarity scores and metadata.
 - `citation_network` (dict): Network expansion around the primary case, including statistics and warnings.
 - `doctrines` (list): Machine-readable doctrines/issues derived from the topic.

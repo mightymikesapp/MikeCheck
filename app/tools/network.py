@@ -62,7 +62,20 @@ async def build_citation_network_impl(
         citing_cases_result = await client.find_citing_cases(
             citation, limit=max_nodes, request_id=request_id
         )
-        citing_cases = cast(list[CourtListenerCase], citing_cases_result["results"])
+
+        raw_results = citing_cases_result.get("results")
+        if not isinstance(raw_results, list):
+            return {
+                "error": "Unexpected response format when fetching citing cases.",
+                "citation": citation,
+                "nodes": [],
+                "edges": [],
+                "warnings": citing_cases_result.get("warnings", []),
+                "failed_requests": citing_cases_result.get("failed_requests", []),
+                "incomplete_data": True,
+            }
+
+        citing_cases = cast(list[CourtListenerCase], raw_results)
 
         log_event(
             logger,

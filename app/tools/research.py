@@ -36,6 +36,67 @@ research_server: FastMCP[ToolPayload] = FastMCP(
 )
 
 
+async def _format_brief_summary(
+    pipeline_result: dict[str, Any],
+) -> str:
+    """Build a concise markdown summary focused on validity and quotes."""
+
+    summary_lines = ["# Brief Check Results"]
+
+    summary_lines.append("\n## Case Validity")
+    cases = pipeline_result.get("cases") or []
+    for case in cases:
+        citation_label = case.get("citation", "Unknown citation")
+        case_name = case.get("case_name", "Unknown case")
+
+        if case.get("error"):
+            summary_lines.append(f"- **{citation_label}**: {case['error']}")
+            continue
+
+        treatment = case.get("treatment") if isinstance(case, dict) else None
+        treatment_summary = "No treatment details available"
+        if isinstance(treatment, dict):
+            overall = treatment.get("overall_treatment") or treatment.get("summary")
+            confidence = treatment.get("confidence")
+            recommendation = treatment.get("recommendation")
+
+            detail_parts = []
+            if overall:
+                detail_parts.append(str(overall))
+            if confidence is not None:
+                detail_parts.append(f"confidence {confidence:.2f}")
+            if recommendation:
+                detail_parts.append(recommendation)
+
+            if detail_parts:
+                treatment_summary = "; ".join(detail_parts)
+
+        summary_lines.append(
+            f"- **{citation_label} – {case_name}**: {treatment_summary}"
+        )
+
+        if case.get("mermaid"):
+            summary_lines.append("  - Mermaid visualization already available")
+
+    quote_results = pipeline_result.get("quotes")
+    if quote_results:
+        summary_lines.append("\n## Quote Verification")
+        results = quote_results.get("results") or []
+        if results:
+            for result in results:
+                label = result.get("citation", "Unknown citation")
+                status = "verified" if result.get("found") else "not verified"
+                similarity = result.get("similarity")
+                similarity_text = (
+                    f" (similarity {similarity:.2f})" if similarity is not None else ""
+                )
+                summary_lines.append(f"- {label}: {status}{similarity_text}")
+        elif quote_results.get("error"):
+            summary_lines.append(f"- Error verifying quotes: {quote_results['error']}")
+
+    return "\n".join(summary_lines)
+
+
 def _format_key_questions(key_questions: list[str]) -> list[str]:
     """Normalize the key questions list."""
     return [q for q in key_questions if q.strip()]
@@ -218,6 +279,45 @@ async def run_research_pipeline(
         Dictionary containing a markdown summary and machine-readable sections.
     """
     return await run_research_pipeline_impl(citations, key_questions, scope, quotes, request_id)
+
+
+@research_server.tool()
+@tool_logging("brief_check_pipeline")
+async def brief_check_pipeline(
+    citations: list[str],
+    quotes: list[dict[str, str]] | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Run a concise validity + quote check preset for multiple citations.
+
+    This preset accepts a list of `citations` and optional `quotes` to verify. It
+    returns a markdown summary focused on case validity findings and quote
+    verification outcomes, plus the underlying machine-readable results. Network
+    or mermaid details are only referenced if they were already produced by the
+    shared research pipeline helpers.
+
+    Returns:
+        Dictionary with `summary_markdown`, `cases`, and optional `quotes` data
+        in the same structure as `run_research_pipeline`.
+    """
+
+    pipeline_result = await run_research_pipeline_impl(
+        citations=citations,
+        key_questions=None,
+        scope=None,
+        quotes=quotes,
+        request_id=request_id,
+    )
+
+    if "error" in pipeline_result:
+        return pipeline_result
+
+    summary = await _format_brief_summary(pipeline_result)
+
+    return {
+        **pipeline_result,
+        "summary_markdown": summary,
+    }
 
 
 async def issue_map_impl(

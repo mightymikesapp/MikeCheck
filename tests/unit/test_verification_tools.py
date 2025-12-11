@@ -9,6 +9,8 @@ from app.tools.verification import (
     verify_quote_impl,
     batch_verify_quotes_impl,
 )
+from app.config import settings
+from app.errors import job_too_large_error
 
 
 # Test _parse_pinpoint_number
@@ -228,6 +230,22 @@ async def test_verify_quote_impl_pinpoint_fallback_to_full_text(mock_client):
 
 
 # Test batch_verify_quotes_impl
+@pytest.mark.unit
+async def test_batch_verify_quotes_impl_respects_batch_limit(monkeypatch):
+    """Return standardized error when batch exceeds configured size."""
+
+    monkeypatch.setattr(settings, "max_quotes_per_batch", 1)
+
+    quotes = [
+        {"quote": "privacy rights", "citation": "123 U.S. 456"},
+        {"quote": "equal protection", "citation": "123 U.S. 456"},
+    ]
+
+    result = await batch_verify_quotes_impl(quotes)
+
+    assert result == job_too_large_error()
+
+
 @pytest.mark.unit
 async def test_batch_verify_quotes_impl_multiple_quotes(mock_client):
     """Test batch verification of multiple quotes."""

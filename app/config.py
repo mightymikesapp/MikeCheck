@@ -131,6 +131,16 @@ class Settings(BaseSettings):
         default=3,
         description="Maximum depth for citation network traversal",
     )
+    max_total_network_nodes: int = Field(
+        default=300,
+        description="Maximum total nodes allowed in a citation network request",
+        validation_alias=AliasChoices("MAX_TOTAL_NETWORK_NODES"),
+    )
+    max_quotes_per_batch: int = Field(
+        default=50,
+        description="Maximum quotes that can be verified in a single batch",
+        validation_alias=AliasChoices("MAX_QUOTES_PER_BATCH"),
+    )
     network_cache_dir: Path = Field(
         default=Path("./citation_networks"),
         description="Directory for caching citation network data",

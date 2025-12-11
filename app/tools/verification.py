@@ -14,6 +14,8 @@ from typing import Any
 from fastmcp import FastMCP
 
 from app.analysis.quote_matcher import QuoteMatcher
+from app.config import settings
+from app.errors import job_too_large_error
 from app.logging_config import tool_logging
 from app.logging_utils import log_event, log_operation
 from app.mcp_client import get_client
@@ -351,6 +353,18 @@ async def batch_verify_quotes_impl(
         Dictionary with batch verification results
     """
     import asyncio
+
+    if len(quotes) > settings.max_quotes_per_batch:
+        log_event(
+            logger,
+            "Quote verification batch exceeds configured limit",
+            tool_name="batch_verify_quotes",
+            request_id=request_id,
+            query_params={"total_quotes": len(quotes)},
+            extra_context={"max_allowed": settings.max_quotes_per_batch},
+            event="job_too_large",
+        )
+        return job_too_large_error()
 
     with log_operation(
         logger,

@@ -107,6 +107,20 @@ uv run python -m app.server
 # The server will be available as "Legal Research Assistant MCP"
 ```
 
+### 🌐 Web UI
+
+Run the FastAPI-powered Web UI for PDF uploads and citation extraction:
+
+```bash
+# Start the Web UI
+uv run python -m app.api
+
+# Then open http://localhost:8000 in your browser
+```
+
+- **URL:** http://localhost:8000
+- **Experience:** "Drop in a PDF, auto-extract citations, and trigger treatment + quote verification in one click."
+
 ## ⚙️ Configuration
 
 Use `.env.example` as a reference for available settings. Key options include:

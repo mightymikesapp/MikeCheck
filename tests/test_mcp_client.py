@@ -23,6 +23,8 @@ def client_instance():
         # Mock the CacheManager to avoid disk I/O
         client.cache_manager = MagicMock(spec=CacheManager)
         # Default behavior: cache miss
+        client.cache_manager.aget = AsyncMock(return_value=None)
+        client.cache_manager.aset = AsyncMock()
         client.cache_manager.get.return_value = None
         yield client
         # Clean up
@@ -54,11 +56,11 @@ async def test_search_opinions(client_instance):
     assert result["results"][0]["caseName"] == "Test Case"
 
     # Verify cache interaction
-    client_instance.cache_manager.get.assert_called_with(
+    client_instance.cache_manager.aget.assert_called_with(
         CacheType.SEARCH,
         {'q': 'test query', 'type': 'o', 'order_by': 'score desc', 'hit': 20}
     )
-    client_instance.cache_manager.set.assert_called()
+    client_instance.cache_manager.aset.assert_called()
 
 
 @pytest.mark.asyncio
@@ -91,10 +93,10 @@ async def test_get_opinion(client_instance):
     assert result["id"] == 123
 
     # Verify cache
-    client_instance.cache_manager.get.assert_called_with(
+    client_instance.cache_manager.aget.assert_called_with(
         CacheType.METADATA, {"opinion_id": 123}
     )
-    client_instance.cache_manager.set.assert_called()
+    client_instance.cache_manager.aset.assert_called()
 
 
 @pytest.mark.asyncio
@@ -114,10 +116,10 @@ async def test_get_opinion_full_text(client_instance):
         assert text == "Full text content"
 
     # Verify cache
-    client_instance.cache_manager.get.assert_called_with(
+    client_instance.cache_manager.aget.assert_called_with(
         CacheType.TEXT, {"opinion_id": 123, "field": "full_text"}
     )
-    client_instance.cache_manager.set.assert_called()
+    client_instance.cache_manager.aset.assert_called()
 
 
 @pytest.mark.asyncio
@@ -155,7 +157,7 @@ async def test_lookup_citation_no_results(client_instance):
     client_instance.client.request = mock_request
 
     result = await client_instance.lookup_citation("Invalid Citation")
-    assert "error" in result
+    assert result["caseName"] == "Citation not found"
 
 
 @pytest.mark.asyncio
@@ -177,7 +179,7 @@ async def test_find_citing_cases(client_instance):
     assert result["failed_requests"] == []
 
     # Verify cache
-    client_instance.cache_manager.get.assert_called_with(
+    client_instance.cache_manager.aget.assert_called_with(
         CacheType.SEARCH, {"citing_cases": "410 U.S. 113", "limit": 100}
     )
 
@@ -329,6 +331,8 @@ async def test_partial_results_track_failures(monkeypatch):
     )
     client = CourtListenerClient(settings)
     client.cache_manager = MagicMock()
+    client.cache_manager.aget = AsyncMock(return_value=None)
+    client.cache_manager.aset = AsyncMock()
     client.cache_manager.get.return_value = None
 
     error = httpx.HTTPStatusError(

@@ -8,10 +8,11 @@ This module analyzes how citing cases treat a target case, classifying treatment
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from collections import defaultdict
 
-from app.types import CourtListenerCase
+from app.types import CourtListenerCase, TreatmentStats
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class TreatmentSignal:
     treatment_type: TreatmentType
     position: int
     context: str
+    opinion_type: str = "majority"  # majority, concurrence, dissent
 
 
 @dataclass
@@ -47,6 +49,8 @@ class TreatmentAnalysis:
     signals_found: list[TreatmentSignal]
     excerpt: str
     date_filed: str | None = None
+    treatment_context: str = "unknown"  # majority, dissent_only, mixed, etc.
+    opinion_breakdown: dict[str, TreatmentType] = field(default_factory=dict)
 
 
 @dataclass
@@ -64,6 +68,8 @@ class AggregatedTreatment:
     negative_treatments: list[TreatmentAnalysis]
     positive_treatments: list[TreatmentAnalysis]
     summary: str
+    treatment_context: str = "unknown"
+    treatment_by_opinion_type: dict[str, TreatmentStats] = field(default_factory=dict)
 
 
 # Treatment signal patterns with weights
@@ -125,15 +131,7 @@ class TreatmentClassifier:
         initial_analysis: "TreatmentAnalysis",
         strategy: str,
     ) -> bool:
-        """Determine if full text should be fetched for deeper analysis.
-
-        Args:
-            initial_analysis: Initial analysis based on snippets
-            strategy: Fetching strategy ('always', 'smart', 'negative_only', 'never')
-
-        Returns:
-            True if full text should be fetched
-        """
+        """Determine if full text should be fetched for deeper analysis."""
         if strategy == "never":
             return False
 
@@ -144,10 +142,6 @@ class TreatmentClassifier:
             return initial_analysis.treatment_type == TreatmentType.NEGATIVE
 
         if strategy == "smart":
-            # Fetch if:
-            # 1. Negative signals found (high priority)
-            # 2. Low confidence (ambiguous)
-            # 3. Unknown treatment (needs more context)
             return (
                 initial_analysis.treatment_type == TreatmentType.NEGATIVE
                 or initial_analysis.confidence < 0.6
@@ -157,25 +151,9 @@ class TreatmentClassifier:
         return False
 
     def _is_negated(self, text: str, position: int, window: int = 50) -> bool:
-        """Check if a signal at the given position is negated.
-
-        Args:
-            text: The text containing the signal
-            position: The starting position of the signal
-            window: How many characters back to check
-
-        Returns:
-            True if negated (e.g. "did not overrule")
-        """
-        # Look at text preceding the signal
+        """Check if a signal at the given position is negated."""
         start = max(0, position - window)
         preceding = text[start:position].lower()
-
-        # Common negation patterns
-        # "not", "did not", "does not", "declined to", "refused to"
-        # Note: "declined to follow" is its own signal, so we need to be careful
-        # not to double-negate if the signal itself implies negation.
-        # But here we are checking generic negation for signals like "overrule".
 
         negation_patterns = [
             r"\bnot\s+$",
@@ -192,76 +170,68 @@ class TreatmentClassifier:
         return False
 
     def _get_court_weight(self, court_id: str | None) -> float:
-        """Get weight multiplier based on court hierarchy.
-
-        Args:
-            court_id: Court identifier (e.g. 'scotus', 'ca9')
-
-        Returns:
-            Weight multiplier (1.0 for highest, lower for others)
-        """
+        """Get weight multiplier based on court hierarchy."""
         if not court_id:
-            return 0.8  # Default
+            return 0.8
 
         court_id = court_id.lower()
-
         if "scotus" in court_id or "us" == court_id:
             return 1.0
         if re.match(r"ca\d+", court_id) or "cir" in court_id:
-            return 0.8  # Circuit courts
+            return 0.8
         if re.match(r"d\d+", court_id) or "dist" in court_id:
-            return 0.6  # District courts
+            return 0.6
 
-        return 0.7  # State/other courts default
+        return 0.7
 
-    def extract_signals(self, text: str, citation: str) -> list[TreatmentSignal]:
-        """Extract treatment signals from text mentioning the citation.
+    def _map_opinion_type(self, op_type: str | None) -> str:
+        """Map CourtListener opinion type to simplified category."""
+        if not op_type:
+            return "majority"
+        op_type = op_type.lower()
+        if "dissent" in op_type:
+            return "dissent"
+        if "concurrence" in op_type or "concurring" in op_type:
+            return "concurrence"
+        return "majority"  # lead, combined, per_curiam, etc.
 
-        Args:
-            text: Text to analyze
-            citation: The citation being analyzed
-
-        Returns:
-            List of treatment signals found
-        """
+    def extract_signals(
+        self, text: str, citation: str, opinion_type: str = "majority"
+    ) -> list[TreatmentSignal]:
+        """Extract treatment signals from text mentioning the citation."""
         signals: list[TreatmentSignal] = []
-
-        # Extract context windows around the citation
         contexts = self._extract_citation_contexts(text, citation)
 
         for context, position in contexts:
             # Check for negative signals
             for pattern, (signal, weight) in self.negative_patterns.items():
                 for match in pattern.finditer(context):
-                    # Check for negation
                     if self._is_negated(context, match.start()):
                         continue
-
                     signals.append(
                         TreatmentSignal(
                             signal=signal,
                             treatment_type=TreatmentType.NEGATIVE,
                             position=position,
-                            context=context[:200],  # First 200 chars
+                            context=context[:200],
+                            opinion_type=opinion_type,
                         )
                     )
 
             # Check for positive signals
             for pattern, (signal, weight) in self.positive_patterns.items():
                 for match in pattern.finditer(context):
-                    # Check for negation
                     if self._is_negated(context, match.start()):
                         continue
-
                     signals.append(
                         TreatmentSignal(
                             signal=signal,
                             treatment_type=TreatmentType.POSITIVE,
                             position=position,
                             context=context[:200],
+                            opinion_type=opinion_type,
                         )
                     )
-
         return signals
 
     def classify_treatment(
@@ -272,64 +242,125 @@ class TreatmentClassifier:
     ) -> TreatmentAnalysis:
         """Classify how a citing case treats the target citation.
 
-        Args:
-            citing_case: Dictionary containing citing case information
-            target_citation: The citation being analyzed
-            full_text: Optional full opinion text for deeper analysis
-
-        Returns:
-            TreatmentAnalysis with classification and confidence
+        If full_text is provided, it's used as a single blob (usually for legacy compatibility).
+        Ideally, we use the structured opinions in citing_case.
         """
-        # Use full text if provided, otherwise extract from case metadata
-        if full_text:
-            text = full_text
-            logger.debug(f"Using full text ({len(text)} chars) for analysis")
-        else:
-            # Extract text to analyze from multiple possible sources
-            # CourtListener V4 API structure
-            text_parts = []
+        all_signals: list[TreatmentSignal] = []
+        opinion_breakdown: dict[str, TreatmentType] = {}
 
-            # Get syllabus (case summary)
+        # 1. Extract signals
+        if full_text:
+            # If explicit full text provided, assume majority/combined
+            logger.debug(f"Using full text ({len(full_text)} chars) for analysis")
+            signals = self.extract_signals(full_text, target_citation, "majority")
+            all_signals.extend(signals)
+            opinion_breakdown["majority"] = self._aggregate_signals(signals)[0]
+
+        elif citing_case.get("opinions"):
+            # Process structured opinions
+            for opinion in citing_case["opinions"]:
+                # Opinion text might be in snippet, plain_text, or html
+                op_text = (
+                    opinion.get("snippet")
+                    or opinion.get("plain_text")
+                    or str(opinion.get("html_lawbox") or "")
+                )
+                if not op_text:
+                    continue
+
+                op_type = self._map_opinion_type(opinion.get("type"))
+                signals = self.extract_signals(op_text, target_citation, op_type)
+                all_signals.extend(signals)
+
+                # Determine treatment for this specific opinion
+                op_treatment, _ = self._aggregate_signals(signals)
+                # Only record if meaningful (not neutral/unknown, unless it's the only one)
+                if op_treatment != TreatmentType.NEUTRAL or op_type not in opinion_breakdown:
+                    opinion_breakdown[op_type] = op_treatment
+
+        else:
+            # Fallback to legacy fields
+            text_parts = []
             if citing_case.get("syllabus"):
                 text_parts.append(citing_case["syllabus"])
-
-            # Get snippets from nested opinions array
-            if citing_case.get("opinions"):
-                for opinion in citing_case["opinions"]:
-                    if opinion.get("snippet"):
-                        text_parts.append(opinion["snippet"])
-
-            # Legacy/fallback fields
             if citing_case.get("plain_text"):
                 text_parts.append(citing_case["plain_text"])
             if citing_case.get("snippet"):
                 text_parts.append(citing_case["snippet"])
-            if citing_case.get("text"):
-                text_parts.append(citing_case["text"])
 
-            # Combine all text
-            text = "\n\n".join(text_parts) if text_parts else ""
-            logger.debug(f"Using snippet text ({len(text)} chars) for analysis")
+            text = "\n\n".join(text_parts)
+            signals = self.extract_signals(text, target_citation, "majority")
+            all_signals.extend(signals)
+            opinion_breakdown["majority"] = self._aggregate_signals(signals)[0]
 
-        # Extract signals
-        signals = self.extract_signals(text, target_citation)
+        # 2. Determine Overall Treatment Context
+        # Logic: Majority > Concurrence > Dissent
+        majority_treatment = opinion_breakdown.get("majority", TreatmentType.NEUTRAL)
+        concurrence_treatment = opinion_breakdown.get("concurrence", TreatmentType.NEUTRAL)
+        dissent_treatment = opinion_breakdown.get("dissent", TreatmentType.NEUTRAL)
 
-        # Classify based on signals
+        treatment_context = "neutral"
+        final_treatment = TreatmentType.NEUTRAL
+        final_confidence = 0.5
         court_weight = self._get_court_weight(citing_case.get("court"))
-        treatment_type, confidence = self._aggregate_signals(signals, court_weight)
 
-        # Extract excerpt containing the citation
-        excerpt = self._extract_best_excerpt(text, target_citation, signals)
+        if majority_treatment == TreatmentType.NEGATIVE:
+            treatment_context = "majority_negative"
+            final_treatment = TreatmentType.NEGATIVE
+            _, conf = self._aggregate_signals([s for s in all_signals if s.opinion_type == "majority"])
+            final_confidence = conf
+
+        elif majority_treatment == TreatmentType.POSITIVE:
+            treatment_context = "majority_positive"
+            final_treatment = TreatmentType.POSITIVE
+            _, conf = self._aggregate_signals([s for s in all_signals if s.opinion_type == "majority"])
+            final_confidence = conf
+            if dissent_treatment == TreatmentType.NEGATIVE:
+                treatment_context = "majority_positive_dissent_negative"
+
+        elif dissent_treatment == TreatmentType.NEGATIVE:
+            # Negative ONLY in dissent (or concurrence)
+            treatment_context = "dissent_negative_only"
+            # The case citing it generally stands, but dissent criticizes.
+            # We mark the case's treatment as NEGATIVE but with context "dissent_negative_only"
+            # Wait, if we mark it NEGATIVE, it counts as a negative citing case.
+            # But `aggregate_treatments` will handle the "is_good_law" logic.
+            # For the individual case analysis, it IS a negative treatment (by the dissent).
+            # But maybe we should return NEUTRAL or MIXED for the case itself?
+            # "The tool classifies treatment as Positive, Negative, Neutral".
+            # If I say Negative, it implies the case is negative.
+            # Let's say Negative, but with lower confidence?
+            final_treatment = TreatmentType.NEGATIVE
+            _, conf = self._aggregate_signals([s for s in all_signals if s.opinion_type == "dissent"])
+            final_confidence = conf * 0.5  # Discount dissent confidence
+
+        elif concurrence_treatment == TreatmentType.NEGATIVE:
+            treatment_context = "concurrence_negative_only"
+            final_treatment = TreatmentType.NEGATIVE
+            _, conf = self._aggregate_signals([s for s in all_signals if s.opinion_type == "concurrence"])
+            final_confidence = conf * 0.7
+
+        else:
+            # Fallback to simple aggregation of all signals if no clear breakdown
+            final_treatment, final_confidence = self._aggregate_signals(all_signals, court_weight)
+            if final_treatment == TreatmentType.NEGATIVE:
+                treatment_context = "majority_negative" # assume majority if unsure
+            elif final_treatment == TreatmentType.POSITIVE:
+                treatment_context = "majority_positive"
+
+        excerpt = self._extract_best_excerpt("", target_citation, all_signals)
 
         return TreatmentAnalysis(
             case_name=citing_case.get("caseName", "Unknown"),
             case_id=str(citing_case.get("id", "")),
             citation=citing_case.get("citation", [""])[0] if citing_case.get("citation") else "",
-            treatment_type=treatment_type,
-            confidence=confidence,
-            signals_found=signals,
+            treatment_type=final_treatment,
+            confidence=final_confidence,
+            signals_found=all_signals,
             excerpt=excerpt,
             date_filed=citing_case.get("dateFiled"),
+            treatment_context=treatment_context,
+            opinion_breakdown=opinion_breakdown,
         )
 
     def aggregate_treatments(
@@ -339,58 +370,80 @@ class TreatmentClassifier:
     ) -> AggregatedTreatment:
         """Aggregate multiple treatment analyses into overall assessment.
 
-        Args:
-            treatments: List of individual treatment analyses
-            target_citation: The citation being analyzed
-
-        Returns:
-            Aggregated treatment assessment
+        Majority/lead opinions drive core validity.
+        Concurrences/dissents influence warnings/confidence but don't flip validity alone.
         """
         positive_count = sum(1 for t in treatments if t.treatment_type == TreatmentType.POSITIVE)
         negative_count = sum(1 for t in treatments if t.treatment_type == TreatmentType.NEGATIVE)
         neutral_count = sum(1 for t in treatments if t.treatment_type == TreatmentType.NEUTRAL)
         unknown_count = sum(1 for t in treatments if t.treatment_type == TreatmentType.UNKNOWN)
 
-        # Separate negative and positive treatments
         negative_treatments = [t for t in treatments if t.treatment_type == TreatmentType.NEGATIVE]
         positive_treatments = [t for t in treatments if t.treatment_type == TreatmentType.POSITIVE]
 
-        # Determine if case is still good law
-        # Any high-confidence negative treatment is a red flag
-        critical_negative = any(
-            t.confidence >= 0.8 and t.treatment_type == TreatmentType.NEGATIVE
-            for t in treatments
+        # Calculate Breakdown by Opinion Type
+        # We need to sum up stats across all cases
+        breakdown: dict[str, TreatmentStats] = defaultdict(lambda: {"positive": 0, "negative": 0, "neutral": 0})
+
+        for t in treatments:
+            for op_type, treatment in t.opinion_breakdown.items():
+                if treatment == TreatmentType.POSITIVE:
+                    breakdown[op_type]["positive"] += 1
+                elif treatment == TreatmentType.NEGATIVE:
+                    breakdown[op_type]["negative"] += 1
+                elif treatment == TreatmentType.NEUTRAL:
+                    breakdown[op_type]["neutral"] += 1
+
+        # Determine Validity
+        # Only Majority/Lead negatives flip validity
+        critical_negative_cases = [
+            t for t in negative_treatments
+            if t.confidence >= 0.7 and "dissent" not in t.treatment_context
+        ]
+
+        # Check for "majority_negative" context explicitly
+        strong_majority_negative = any(
+            t.treatment_context == "majority_negative" and t.confidence >= 0.7
+            for t in negative_treatments
         )
 
-        is_good_law = not critical_negative
+        is_good_law = not (strong_majority_negative or len(critical_negative_cases) > 1)
 
         # Calculate overall confidence
-        if critical_negative:
-            # High confidence it's NOT good law if we found strong negative signals
-            confidence = max(t.confidence for t in negative_treatments)
-        elif negative_count > 0:
-            # Some negative treatment but not critical
-            confidence = 0.6 - (negative_count * 0.1)
-        elif positive_count > negative_count * 2:
-            # Strong positive treatment
-            confidence = 0.8 + min(0.15, positive_count * 0.03)
+        confidence = 0.7
+        if not is_good_law:
+            confidence = max((t.confidence for t in critical_negative_cases), default=0.8)
         else:
-            # Mostly neutral/unknown
-            confidence = 0.7
+            # It is good law, but are there warnings?
+            dissent_negatives = [t for t in negative_treatments if "dissent" in t.treatment_context]
+            if dissent_negatives:
+                # Reduce confidence slightly
+                confidence = 0.85
+            elif positive_count > negative_count * 2:
+                confidence = 0.95
 
-        # Generate summary
+        # Determine overall context label
+        overall_context = "neutral"
+        if not is_good_law:
+            overall_context = "majority_negative"
+        elif any(t.treatment_context == "dissent_negative_only" for t in negative_treatments):
+            overall_context = "dissent_negative_only"
+        elif positive_count > 0:
+            overall_context = "majority_positive"
+
         summary = self._generate_summary(
             positive_count,
             negative_count,
             neutral_count,
             is_good_law,
             negative_treatments,
+            overall_context
         )
 
         return AggregatedTreatment(
             citation=target_citation,
             is_good_law=is_good_law,
-            confidence=min(confidence, 0.95),  # Cap at 95%
+            confidence=min(confidence, 0.95),
             total_citing_cases=len(treatments),
             positive_count=positive_count,
             negative_count=negative_count,
@@ -399,39 +452,23 @@ class TreatmentClassifier:
             negative_treatments=negative_treatments,
             positive_treatments=positive_treatments,
             summary=summary,
+            treatment_context=overall_context,
+            treatment_by_opinion_type=dict(breakdown),
         )
 
     def _extract_citation_contexts(
         self,
         text: str,
         citation: str,
-        window: int = 400,  # Increased from 200 to catch more context
+        window: int = 400,
     ) -> list[tuple[str, int]]:
-        """Extract context windows around mentions of the citation.
-
-        Args:
-            text: Full text to search
-            citation: Citation to find
-            window: Characters before/after to include
-
-        Returns:
-            List of (context, position) tuples
-        """
+        """Extract context windows around mentions of the citation."""
         contexts = []
-
-        # Try multiple citation patterns to find all mentions
-        # Pattern 1: Direct citation (e.g., "410 U.S. 113")
         citation_pattern = re.escape(citation).replace(r"\ ", r"\s+")
-        patterns_to_try = [
-            re.compile(citation_pattern, re.IGNORECASE),
-        ]
+        patterns_to_try = [re.compile(citation_pattern, re.IGNORECASE)]
 
-        # Pattern 2: If citation is "XXX U.S. YYY", also try case name
-        # (e.g., for "410 U.S. 113", also search for "Roe v. Wade")
-        # This helps when signals are near case name but before citation
         us_cite_match = re.match(r"(\d+)\s+U\.?S\.?\s+(\d+)", citation, re.IGNORECASE)
         if us_cite_match:
-            # Add pattern for common case names associated with this citation
             well_known_cases = {
                 "410 U.S. 113": "Roe v. Wade",
                 "539 U.S. 558": "Lawrence v. Texas",
@@ -450,30 +487,21 @@ class TreatmentClassifier:
                 context = text[start:end]
                 contexts.append((context, match.start()))
 
-        return contexts if contexts else [(text[:500], 0)]  # Fallback to beginning
+        return contexts if contexts else [(text[:500], 0)]
 
     def _aggregate_signals(
         self,
         signals: list[TreatmentSignal],
         court_weight: float = 1.0,
     ) -> tuple[TreatmentType, float]:
-        """Aggregate signals into overall treatment type and confidence.
-
-        Args:
-            signals: List of treatment signals
-
-        Returns:
-            Tuple of (treatment_type, confidence)
-        """
+        """Aggregate signals into overall treatment type and confidence."""
         if not signals:
             return TreatmentType.NEUTRAL, 0.5
 
         negative_signals = [s for s in signals if s.treatment_type == TreatmentType.NEGATIVE]
         positive_signals = [s for s in signals if s.treatment_type == TreatmentType.POSITIVE]
 
-        # Negative signals take precedence (conservative approach)
         if negative_signals:
-            # Get the strongest negative signal
             strongest = max(
                 negative_signals,
                 key=lambda s: self._get_signal_weight(s.signal, TreatmentType.NEGATIVE),
@@ -492,23 +520,12 @@ class TreatmentClassifier:
         return TreatmentType.NEUTRAL, 0.5
 
     def _get_signal_weight(self, signal: str, treatment_type: TreatmentType) -> float:
-        """Get the weight for a signal.
-
-        Args:
-            signal: Signal text
-            treatment_type: Type of treatment
-
-        Returns:
-            Weight between 0 and 1
-        """
         signals_dict = (
             NEGATIVE_SIGNALS if treatment_type == TreatmentType.NEGATIVE else POSITIVE_SIGNALS
         )
-
         for pattern_text, (sig, weight) in signals_dict.items():
             if sig == signal:
                 return weight
-
         return 0.5
 
     def _extract_best_excerpt(
@@ -517,27 +534,13 @@ class TreatmentClassifier:
         citation: str,
         signals: list[TreatmentSignal],
     ) -> str:
-        """Extract the most relevant excerpt showing treatment.
-
-        Args:
-            text: Full text
-            citation: Citation to find
-            signals: Treatment signals found
-
-        Returns:
-            Most relevant excerpt (max 300 chars)
-        """
         if signals:
-            # Use context from strongest signal
             best_signal = max(
                 signals,
                 key=lambda s: self._get_signal_weight(s.signal, s.treatment_type),
             )
             return best_signal.context
-
-        # Fallback: extract around citation
-        contexts = self._extract_citation_contexts(text, citation, window=150)
-        return contexts[0][0] if contexts else text[:300]
+        return ""
 
     def _generate_summary(
         self,
@@ -546,19 +549,9 @@ class TreatmentClassifier:
         neutral_count: int,
         is_good_law: bool,
         negative_treatments: list[TreatmentAnalysis],
+        context: str = "neutral",
     ) -> str:
-        """Generate human-readable summary of treatment analysis.
-
-        Args:
-            positive_count: Number of positive treatments
-            negative_count: Number of negative treatments
-            neutral_count: Number of neutral treatments
-            is_good_law: Whether case is still good law
-            negative_treatments: List of negative treatment analyses
-
-        Returns:
-            Summary string
-        """
+        """Generate human-readable summary of treatment analysis."""
         if not is_good_law:
             signals = ", ".join(
                 set(s.signal for t in negative_treatments for s in t.signals_found[:2])
@@ -568,10 +561,16 @@ class TreatmentClassifier:
                 f"including: {signals}. Recommend manual review."
             )
 
+        if context == "dissent_negative_only":
+            return (
+                f"⚠️  Case is valid, but negative commentary appears in dissenting opinions. "
+                f"Found {negative_count} negative signal(s) in dissents."
+            )
+
         if negative_count > 0:
             return (
                 f"⚡ Case appears to be good law but has {negative_count} negative treatment(s). "
-                f"Also {positive_count} positive, {neutral_count} neutral citations. Review recommended."
+                f"Also {positive_count} positive, {neutral_count} neutral citations."
             )
 
         if positive_count > 5:

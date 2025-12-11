@@ -15,6 +15,8 @@ class CourtListenerOpinion(TypedDict, total=False):
     html_lawbox: str
     html_columbia: str
     html_anon_2020: str
+    type: str  # e.g., "010combined", "020lead", "030concurrence", "040dissent"
+    author: str | None
 
 
 class CourtListenerCase(TypedDict, total=False):
@@ -41,6 +43,14 @@ class TreatmentWarning(TypedDict, total=False):
     citation: str
     date_filed: str | None
     excerpt: str
+    opinion_type: NotRequired[str]  # e.g. "dissent"
+
+
+class TreatmentStats(TypedDict, total=False):
+    """Counts of treatment types."""
+    positive: int
+    negative: int
+    neutral: int
 
 
 class TreatmentResult(TypedDict, total=False):
@@ -61,6 +71,8 @@ class TreatmentResult(TypedDict, total=False):
     incomplete_data: bool
     recommendation: str
     error: NotRequired[str]
+    treatment_context: NotRequired[str]  # e.g. "majority_negative", "dissent_negative_only"
+    treatment_by_opinion_type: NotRequired[dict[str, TreatmentStats]]
 
 
 class QuoteMatch(TypedDict, total=False):

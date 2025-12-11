@@ -503,7 +503,7 @@ pipeline_result = await run_research_pipeline(
 )
 
 for case in pipeline_result["cases"]:
-    print(f"Treatment: {case['treatment'].get('overall_treatment')}")
+    print(f"Treatment: {case.get('treatment', {}).get('overall_treatment')}")
 
 print("Quote Verification Results:")
 for result in pipeline_result["quotes"]["results"]:

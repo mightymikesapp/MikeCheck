@@ -26,8 +26,9 @@
 </tr>
 {% endfor %}
 
-<div id="research-all-btn" hx-swap-oob="true"
-     class="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 cursor-pointer"
+<button id="research-all-btn" hx-swap-oob="true"
+     type="button"
+     class="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
      onclick="document.querySelectorAll('.check-btn').forEach(btn => btn.click())">
     <span>Run All Checks</span>
-</div>
+</button>

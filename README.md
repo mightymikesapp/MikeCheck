@@ -506,11 +506,14 @@ for case in pipeline_result["cases"]:
     print(f"Treatment: {case.get('treatment', {}).get('overall_treatment')}")
 
 print("Quote Verification Results:")
-for result in pipeline_result["quotes"]["results"]:
-    print(
-        f"- {result['citation']}: {'found' if result['found'] else 'missing'}"
-        f" (similarity {result['similarity']:.2f})"
-    )
+for result in (pipeline_result.get("quotes") or {}).get("results", []):
+    if result.get('error'):
+        print(f"- {result.get('citation', 'Unknown')}: Error - {result['error']}")
+    else:
+        print(
+            f"- {result.get('citation', 'Unknown')}: {'found' if result.get('found') else 'missing'}"
+            f" (similarity {result.get('similarity', 0.0):.2f})"
+        )
 ```
 
 ### Example 8: Quick Brief Check Preset

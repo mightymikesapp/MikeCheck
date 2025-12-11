@@ -393,13 +393,15 @@ async def outline_support_pipeline_impl(
         query_params=query_params,
         event="outline_support_pipeline",
     ):
-        search_results = await semantic_search_impl(query=topic, limit=related_limit)
-        network = await build_citation_network_impl(
-            citation=primary_case,
-            max_depth=settings.network_max_depth,
-            max_nodes=settings.max_citing_cases,
-            include_treatments=True,
-            request_id=request_id,
+        search_results, network = await asyncio.gather(
+            semantic_search_impl(query=topic, limit=related_limit),
+            build_citation_network_impl(
+                citation=primary_case,
+                max_depth=settings.network_max_depth,
+                max_nodes=settings.max_citing_cases,
+                include_treatments=True,
+                request_id=request_id,
+            ),
         )
 
         related_cases = []

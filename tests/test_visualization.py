@@ -91,22 +91,6 @@ def mock_classifier(mocker):
     mock_analysis.confidence = 0.9
     mock_analysis.excerpt = "Overruled"
 
-    # The code in build_citation_network_impl tries to access it as a dict: treatment["treatment"]
-    # Wait, TreatmentClassifier.classify_treatment returns a TreatmentAnalysis object (dataclass).
-    # But app/tools/network.py:75 says: "treatment": treatment["treatment"]
-    # This implies the code in network.py expects a dict!
-    # BUT TreatmentClassifier.classify_treatment returns TreatmentAnalysis object.
-
-    # LET'S CHECK TreatmentClassifier.classify_treatment definition again.
-    # It returns TreatmentAnalysis.
-
-    # So app/tools/network.py:75 is BUGGY! It tries to subscript a dataclass object.
-    # treatment["treatment"] -> treatment.treatment_type.value
-
-    # I should FIX the bug in app/tools/network.py first.
-    # But for now, to make the test pass or fail correctly, I will verify if I should fix the bug.
-    # Yes, I should fix the bug.
-
     instance.classify_treatment.return_value = mock_analysis
     return instance
 

@@ -43,12 +43,16 @@ class JsonFormatter(logging.Formatter):
             citation = metadata.get("citation")
             if citation:
                 log_record["citation"] = citation
+            job_id = metadata.get("job_id")
+            if job_id:
+                log_record["job_id"] = job_id
 
         for field in (
             "elapsed_ms",
             "event",
             "query_params",
             "citation_count",
+            "job_id",
         ):
             value = getattr(record, field, None)
             if value is not None:
@@ -86,6 +90,9 @@ def _bind_context(tool_name: str, call_signature: Signature, args: tuple[Any, ..
     metadata: dict[str, Any] = {"tool_name": tool_name}
     if citation is not None:
         metadata["citation"] = citation
+    job_id = bound.arguments.get("job_id")
+    if job_id is not None:
+        metadata["job_id"] = str(job_id)
 
     metadata_token = request_metadata_ctx.set(metadata)
     return correlation_token, metadata_token

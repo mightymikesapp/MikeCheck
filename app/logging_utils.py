@@ -18,6 +18,7 @@ def log_event(
     level: int = logging.INFO,
     tool_name: str | None = None,
     request_id: str | None = None,
+    job_id: str | None = None,
     query_params: Mapping[str, Any] | None = None,
     citation_count: int | None = None,
     event: str | None = None,
@@ -30,6 +31,7 @@ def log_event(
     context: dict[str, Any] = {
         "tool_name": tool_name or metadata.get("tool_name"),
         "request_id": request_id or correlation_id,
+        "job_id": job_id or metadata.get("job_id"),
         "query_params": dict(query_params) if query_params else None,
         "citation_count": citation_count,
         "event": event,
@@ -52,6 +54,7 @@ def log_operation(
     *,
     tool_name: str,
     request_id: str | None,
+    job_id: str | None = None,
     query_params: Mapping[str, Any] | None,
     event: str,
     extra_context: Mapping[str, Any] | None = None,
@@ -63,6 +66,7 @@ def log_operation(
     context: dict[str, Any] = {
         "tool_name": tool_name or metadata.get("tool_name"),
         "request_id": request_id or correlation_id,
+        "job_id": job_id or metadata.get("job_id"),
         "query_params": dict(query_params) if query_params else None,
         "event": event,
     }

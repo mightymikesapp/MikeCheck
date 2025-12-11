@@ -123,48 +123,70 @@ uv run python -m app.api
 
 ## ⚙️ Configuration
 
-Use `.env.example` as a reference for available settings. Key options include:
+Use `.env.example` as a reference for available settings. The new `MODE` preset simplifies configuration; it applies sensible defaults for timeouts, cache TTLs, and workload size while still letting you override individual values. If you set both `MODE` and a specific variable (e.g., `MAX_CITING_CASES`), the explicit variable wins.
+
+### Mode presets
+
+| MODE      | When to use                                    | Key presets |
+|-----------|-------------------------------------------------|-------------|
+| `light`   | Quick spot checks with minimal load             | Smaller citing-case limits, shorter TTLs, fewer retries/backoff |
+| `standard`| Balanced runs for typical research sessions     | Existing defaults for caching, retries, and analysis depth |
+| `heavy`   | Deep dives where you want rich context and reuse | Higher citing-case limits, longer TTLs, `fetch_full_text_strategy=always`, deeper citation network. Designed with CourtListener politeness in mind: longer cache retention and higher backoff to reduce request bursts. |
+
+Example `.env` snippets:
+
+```env
+# Fast iteration: keep requests light and cache short
+MODE=light
+# Optional: override a single value even when MODE is set
+MAX_CITING_CASES=40
+```
+
+```env
+# Default behavior (balanced)
+MODE=standard
+```
+
+```env
+# Comprehensive research: cache generously and explore more depth
+MODE=heavy
+# You can still override specifics if needed
+COURTLISTENER_TTL_METADATA=259200
+```
 
 ### API & Authentication
 - `COURT_LISTENER_API_KEY` / `COURTLISTENER_API_KEY` - CourtListener API key (aliases supported)
+- `COURTLISTENER_BASE_URL` - API base URL (default: https://www.courtlistener.com/api/rest/v4/)
 
 ### CourtListener API Settings
-- `COURTLISTENER_BASE_URL` - API base URL (default: https://www.courtlistener.com/api/rest/v3)
 - `COURTLISTENER_TIMEOUT` - Request timeout in seconds (default: 30)
-- `COURTLISTENER_MAX_RETRIES` - Maximum retry attempts (default: 3)
-- `COURTLISTENER_RETRY_BACKOFF_FACTOR` - Exponential backoff multiplier (default: 2)
+- `COURTLISTENER_CONNECT_TIMEOUT` - Connect timeout in seconds (default: 10)
+- `COURTLISTENER_READ_TIMEOUT` - Read timeout in seconds (default: 60)
+- `COURTLISTENER_RETRY_ATTEMPTS` - Maximum retry attempts (default: 3)
+- `COURTLISTENER_RETRY_BACKOFF` - Initial backoff in seconds for retries (default: 1)
 
 ### Treatment Analysis Settings
 - `FETCH_FULL_TEXT_STRATEGY` - Full-text fetching strategy: `always`, `smart` (default), `negative_only`, `never`
-- `MAX_FULL_TEXT_FETCHES` - Maximum full-text fetches per analysis (default: 5)
-- `CONFIDENCE_THRESHOLD` - Minimum confidence score (default: 0.5)
-- `CITING_CASE_LIMIT` - Maximum citing cases to analyze per treatment check (default: 100)
+- `MAX_FULL_TEXT_FETCHES` - Maximum full-text fetches per analysis (default: 10)
+- `TREATMENT_CONFIDENCE_THRESHOLD` - Minimum confidence score (default: 0.7)
+- `MAX_CITING_CASES` - Maximum citing cases to analyze per treatment check (default: 100)
 
 ### Citation Network Settings
-- `NETWORK_MAX_DEPTH` - Maximum recursion depth for network building (default: 2)
-- `NETWORK_MAX_NODES` - Maximum nodes in citation network (default: 100)
-- `ENABLE_ADVANCED_METRICS` - Compute PageRank and centrality (default: true)
-- `ENABLE_COMMUNITY_DETECTION` - Use graph clustering (default: true)
-
-### Semantic Search Settings
-- `SEMANTIC_SEARCH_ENABLED` - Enable vector-based search (default: true)
-- `SEMANTIC_SEARCH_PERSISTENCE_PATH` - Directory for embeddings storage (default: `.cache/embeddings`)
-- `SEMANTIC_SEARCH_MODEL` - Embedding model name (default: `all-MiniLM-L6-v2`)
-- `SEMANTIC_SEARCH_BATCH_SIZE` - Batch size for vector indexing (default: 32)
+- `NETWORK_MAX_DEPTH` - Maximum recursion depth for network building (default: 3)
 
 ### Cache Settings
 - `CACHE_ENABLED` - Enable caching (default: true)
-- `CACHE_DIRECTORY` - Cache storage path (default: `.cache`)
-- `CACHE_METADATA_TTL` - Metadata cache TTL in seconds (default: 86400, 24 hours)
-- `CACHE_TEXT_TTL` - Full-text cache TTL in seconds (default: 604800, 7 days)
-- `CACHE_SEARCH_TTL` - Search result cache TTL in seconds (default: 259200, 3 days)
-- `CACHE_MAX_SIZE_MB` - Maximum cache size in MB (default: 1000)
+- `CACHE_DIR` - Cache storage path (default: `.cache`)
+- `COURTLISTENER_CACHE_DIR` - Path for CourtListener cache (default: `.cache/courtlistener`)
+- `COURTLISTENER_TTL_METADATA` - Metadata cache TTL in seconds (default: 86400, 24 hours)
+- `COURTLISTENER_TTL_TEXT` - Full-text cache TTL in seconds (default: 604800, 7 days)
+- `COURTLISTENER_TTL_SEARCH` - Search result cache TTL in seconds (default: 3600, 1 hour)
+- `COURTLISTENER_SEARCH_CACHE_ENABLED` - Enable search caching (default: true)
 
 ### Logging Settings
 - `LOG_LEVEL` - Logging level: DEBUG, INFO, WARNING, ERROR (default: INFO)
-- `LOG_FORMAT` - Log format: simple, detailed, json (default: detailed)
+- `LOG_FORMAT` - Log format: simple, detailed, json (default: json)
 - `LOG_DATE_FORMAT` - Date format in logs (default: `%Y-%m-%d %H:%M:%S`)
-- `LOG_INCLUDE_REQUEST_ID` - Include correlation IDs in logs (default: true)
 
 After copying the template, adjust values in `.env` to match your environment and preferences.
 

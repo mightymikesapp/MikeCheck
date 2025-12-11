@@ -1,6 +1,7 @@
 """Configuration management for Legal Research Assistant MCP."""
 
 from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import AliasChoices, Field
 
@@ -16,6 +17,14 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+    )
+
+    mode: Literal["light", "standard", "heavy"] = Field(
+        default="standard",
+        description=(
+            "Preset configuration profile. "
+            "Use 'light' for quick checks, 'standard' for balanced runs, and 'heavy' for deep dives."
+        ),
     )
 
     # CourtListener MCP connection
@@ -126,6 +135,61 @@ class Settings(BaseSettings):
         default=Path("./citation_networks"),
         description="Directory for caching citation network data",
     )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Apply mode-specific defaults while preserving explicit overrides."""
+        super().model_post_init(__context)
+        self._apply_mode_defaults()
+
+    def _apply_mode_defaults(self) -> None:
+        """Apply preset values for the selected mode unless explicitly overridden."""
+
+        profiles: dict[str, dict[str, Any]] = {
+            "light": {
+                "max_citing_cases": 25,
+                "max_full_text_fetches": 3,
+                "courtlistener_timeout": 15.0,
+                "courtlistener_connect_timeout": 5.0,
+                "courtlistener_read_timeout": 30.0,
+                "courtlistener_retry_attempts": 2,
+                "courtlistener_retry_backoff": 0.5,
+                "courtlistener_ttl_metadata": 3600,
+                "courtlistener_ttl_text": 86400,
+                "courtlistener_ttl_search": 1800,
+            },
+            "standard": {
+                "max_citing_cases": 100,
+                "max_full_text_fetches": 10,
+                "courtlistener_timeout": 30.0,
+                "courtlistener_connect_timeout": 10.0,
+                "courtlistener_read_timeout": 60.0,
+                "courtlistener_retry_attempts": 3,
+                "courtlistener_retry_backoff": 1.0,
+                "courtlistener_ttl_metadata": 86400,
+                "courtlistener_ttl_text": 604800,
+                "courtlistener_ttl_search": 3600,
+            },
+            "heavy": {
+                "max_citing_cases": 200,
+                "max_full_text_fetches": 25,
+                "fetch_full_text_strategy": "always",
+                "courtlistener_timeout": 45.0,
+                "courtlistener_connect_timeout": 15.0,
+                "courtlistener_read_timeout": 120.0,
+                "courtlistener_retry_attempts": 5,
+                "courtlistener_retry_backoff": 2.0,
+                "courtlistener_ttl_metadata": 172800,
+                "courtlistener_ttl_text": 1209600,
+                "courtlistener_ttl_search": 14400,
+                "network_max_depth": 4,
+            },
+        }
+
+        profile_overrides = profiles.get(self.mode, {})
+        for field_name, value in profile_overrides.items():
+            if field_name in self.model_fields_set:
+                continue
+            setattr(self, field_name, value)
 
     def configure_logging(self) -> None:
         """Configure application logging."""

@@ -128,6 +128,7 @@ async def verify_quote_impl(
     citation: str,
     pinpoint: str | None = None,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> QuoteVerificationResult:
     """Verify a quote appears in the cited source.
 
@@ -145,6 +146,7 @@ async def verify_quote_impl(
         logger,
         tool_name="verify_quote",
         request_id=request_id,
+        job_id=job_id,
         query_params={"citation": citation, "pinpoint": pinpoint},
         event="verify_quote",
     ):
@@ -157,6 +159,7 @@ async def verify_quote_impl(
                 "error_code": "CASE_NOT_FOUND",
                 "citation": citation,
                 "quote": quote,
+                "job_id": job_id,
             }
 
         case_name = target_case.get("caseName", "Unknown")
@@ -165,6 +168,7 @@ async def verify_quote_impl(
             "Case located for quote verification",
             tool_name="verify_quote",
             request_id=request_id,
+            job_id=job_id,
             query_params={"citation": citation, "pinpoint": pinpoint},
             event="verify_quote_case",
         )
@@ -182,6 +186,7 @@ async def verify_quote_impl(
                 "citation": citation,
                 "case_name": case_name,
                 "quote": quote,
+                "job_id": job_id,
             }
 
         opinion_id = opinion_ids[0]
@@ -194,6 +199,7 @@ async def verify_quote_impl(
                 "citation": citation,
                 "case_name": case_name,
                 "quote": quote,
+                "job_id": job_id,
             }
 
         log_event(
@@ -201,6 +207,7 @@ async def verify_quote_impl(
             "Opinion text retrieved for quote verification",
             tool_name="verify_quote",
             request_id=request_id,
+            job_id=job_id,
             query_params={"citation": citation, "pinpoint": pinpoint},
             citation_count=len(full_text),
             event="verify_quote_text",
@@ -341,6 +348,7 @@ async def verify_quote_impl(
 async def batch_verify_quotes_impl(
     quotes: list[dict[str, str]],
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Verify multiple quotes in batch.
 
@@ -356,17 +364,22 @@ async def batch_verify_quotes_impl(
         logger,
         tool_name="batch_verify_quotes",
         request_id=request_id,
+        job_id=job_id,
         query_params={"total_quotes": len(quotes)},
         event="batch_verify_quotes",
     ):
         # Build tasks for parallel execution
-        tasks = []
+        tasks: list[asyncio.Task[dict[str, Any]]] = []
+        task_to_index: dict[asyncio.Task[dict[str, Any]], int] = {}
+        progress_interval = 10
+
         for i, quote_data in enumerate(quotes, 1):
             log_event(
                 logger,
                 "Queuing quote for verification",
                 tool_name="batch_verify_quotes",
                 request_id=request_id,
+                job_id=job_id,
                 query_params={"index": i, "citation": quote_data.get("citation")},
             )
 
@@ -381,29 +394,54 @@ async def batch_verify_quotes_impl(
                         "error": "Missing quote or citation",
                         "quote": q,
                         "citation": c,
+                        "job_id": job_id,
                     }
-                tasks.append(return_error())
+
+                task = asyncio.create_task(return_error())
             else:
-                tasks.append(
-                    verify_quote_impl(quote, citation, pinpoint, request_id=request_id)
+                task = asyncio.create_task(
+                    verify_quote_impl(
+                        quote,
+                        citation,
+                        pinpoint,
+                        request_id=request_id,
+                        job_id=job_id,
+                    )
                 )
 
-        # Execute all verifications in parallel
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+            task_to_index[task] = i - 1
+            tasks.append(task)
 
-        # Convert any exceptions to error dictionaries
-        processed_results = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                processed_results.append({
-                    "error": f"Verification failed: {str(result)}",
-                    "quote": quotes[i].get("quote", ""),
-                    "citation": quotes[i].get("citation", ""),
-                })
-            else:
-                processed_results.append(result)
+        total_quotes = len(quotes)
+        results: list[dict[str, Any] | None] = [None] * total_quotes
 
-        results = processed_results
+        for completed_index, task in enumerate(asyncio.as_completed(tasks), 1):
+            task_index = task_to_index[task]
+            try:
+                result = await task
+            except Exception as exc:  # noqa: BLE001
+                result = {
+                    "error": f"Verification failed: {exc}",
+                    "quote": quotes[task_index].get("quote", ""),
+                    "citation": quotes[task_index].get("citation", ""),
+                    "job_id": job_id,
+                }
+
+            results[task_index] = result
+
+            if total_quotes >= progress_interval:
+                if completed_index % progress_interval == 0 or completed_index == total_quotes:
+                    log_event(
+                        logger,
+                        "Quote verification progress",
+                        tool_name="batch_verify_quotes",
+                        request_id=request_id,
+                        job_id=job_id,
+                        query_params={"completed": completed_index, "total": total_quotes},
+                        event="batch_verify_quotes_progress",
+                    )
+
+        results = [result or {} for result in results]
 
         # Summary statistics
         total = len(results)
@@ -416,12 +454,14 @@ async def batch_verify_quotes_impl(
             "Batch verification complete",
             tool_name="batch_verify_quotes",
             request_id=request_id,
+            job_id=job_id,
             query_params={"total_quotes": len(quotes)},
             citation_count=verified,
             event="batch_verify_quotes_complete",
         )
 
         return {
+            "job_id": job_id,
             "total_quotes": total,
             "verified": verified,
             "exact_matches": exact,
@@ -446,6 +486,7 @@ async def verify_quote(
     citation: str,
     pinpoint: str | None = None,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> QuoteVerificationResult:
     """Verify that a quote accurately appears in the cited case.
 
@@ -484,7 +525,9 @@ async def verify_quote(
             }
         }
     """
-    return await verify_quote_impl(quote, citation, pinpoint, request_id=request_id)
+    return await verify_quote_impl(
+        quote, citation, pinpoint, request_id=request_id, job_id=job_id
+    )
 
 
 @verification_server.tool()
@@ -492,6 +535,7 @@ async def verify_quote(
 async def batch_verify_quotes(
     quotes: list[dict[str, str]],
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Verify multiple quotes in a single batch operation.
 
@@ -525,4 +569,6 @@ async def batch_verify_quotes(
             "results": [...]
         }
     """
-    return await batch_verify_quotes_impl(quotes, request_id=request_id)
+    return await batch_verify_quotes_impl(
+        quotes, request_id=request_id, job_id=job_id
+    )

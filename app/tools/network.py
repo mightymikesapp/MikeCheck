@@ -25,6 +25,7 @@ async def build_citation_network_impl(
     max_nodes: int = 100,
     include_treatments: bool = True,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> CitationNetworkResult:
     """Implementation of build_citation_network."""
     query_params = {
@@ -40,6 +41,7 @@ async def build_citation_network_impl(
         logger,
         tool_name="build_citation_network",
         request_id=request_id,
+        job_id=job_id,
         query_params=query_params,
         event="build_citation_network",
     ):
@@ -48,6 +50,7 @@ async def build_citation_network_impl(
             "Looking up root case",
             tool_name="build_citation_network",
             request_id=request_id,
+            job_id=job_id,
             query_params=query_params,
         )
         root_case = await client.lookup_citation(citation, request_id=request_id)
@@ -56,6 +59,7 @@ async def build_citation_network_impl(
             return {
                 "error": f"Could not find case for citation: {citation}",
                 "citation": citation,
+                "job_id": job_id,
             }
 
         # Get citing cases
@@ -73,6 +77,7 @@ async def build_citation_network_impl(
                 "warnings": citing_cases_result.get("warnings", []),
                 "failed_requests": citing_cases_result.get("failed_requests", []),
                 "incomplete_data": True,
+                "job_id": job_id,
             }
 
         citing_cases = cast(list[CourtListenerCase], raw_results)
@@ -82,6 +87,7 @@ async def build_citation_network_impl(
             "Citing cases retrieved",
             tool_name="build_citation_network",
             request_id=request_id,
+            job_id=job_id,
             query_params=query_params,
             citation_count=len(citing_cases),
             extra_context={
@@ -112,6 +118,7 @@ async def build_citation_network_impl(
                 "warnings": citing_cases_result.get("warnings", []),
                 "failed_requests": citing_cases_result.get("failed_requests", []),
                 "incomplete_data": citing_cases_result.get("incomplete_data", True),
+                "job_id": job_id,
             }
 
         # Optionally include treatment analysis
@@ -123,6 +130,7 @@ async def build_citation_network_impl(
                 "Including treatment analysis in network",
                 tool_name="build_citation_network",
                 request_id=request_id,
+                job_id=job_id,
                 query_params=query_params,
                 citation_count=len(citing_cases),
             )
@@ -164,7 +172,9 @@ async def build_citation_network_impl(
 
         # Build the network
         builder = CitationNetworkBuilder(max_depth=max_depth, max_nodes=max_nodes)
-        network = builder.build_network(root_case, citing_cases, treatments)
+        network = builder.build_network(
+            root_case, citing_cases, treatments, job_id=job_id
+        )
 
         # Get statistics
         statistics = builder.get_network_statistics(network)
@@ -200,6 +210,7 @@ async def build_citation_network_impl(
             "warnings": citing_cases_result.get("warnings", []),
             "failed_requests": citing_cases_result.get("failed_requests", []),
             "incomplete_data": citing_cases_result.get("incomplete_data", False),
+            "job_id": job_id,
         }
 
 
@@ -211,6 +222,7 @@ async def filter_citation_network_impl(
     date_before: str | None = None,
     max_nodes: int = 100,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> CitationNetworkResult:
     """Implementation of filter_citation_network."""
     query_params = {
@@ -226,6 +238,7 @@ async def filter_citation_network_impl(
         logger,
         tool_name="filter_citation_network",
         request_id=request_id,
+        job_id=job_id,
         query_params=query_params,
         event="filter_citation_network",
     ):
@@ -236,6 +249,7 @@ async def filter_citation_network_impl(
             max_nodes=max_nodes,
             include_treatments=True,
             request_id=request_id,
+            job_id=job_id,
         )
 
         if "error" in full_network:
@@ -289,6 +303,7 @@ async def filter_citation_network_impl(
         "Filtered citation network computed",
         tool_name="filter_citation_network",
         request_id=request_id,
+        job_id=job_id,
         query_params=query_params,
         citation_count=len(filtered_edges),
         event="filter_citation_network",
@@ -310,6 +325,7 @@ async def filter_citation_network_impl(
                 "date_before": date_before,
             },
         },
+        "job_id": job_id,
     }
 
 
@@ -317,6 +333,7 @@ async def get_network_statistics_impl(
     citation: str,
     max_nodes: int = 100,
     request_id: str | None = None,
+    job_id: str | None = None,
     enable_advanced_metrics: bool = True,
     enable_community_detection: bool = True,
     weight_by_court_level: bool = False,
@@ -336,6 +353,7 @@ async def get_network_statistics_impl(
         logger,
         tool_name="get_network_statistics",
         request_id=request_id,
+        job_id=job_id,
         query_params=query_params,
         event="get_network_statistics",
     ):
@@ -345,6 +363,8 @@ async def get_network_statistics_impl(
             max_depth=1,
             max_nodes=max_nodes,
             include_treatments=True,
+            request_id=request_id,
+            job_id=job_id,
         )
 
     if "error" in network:
@@ -509,6 +529,7 @@ async def get_network_statistics_impl(
         "Network statistics computed",
         tool_name="get_network_statistics",
         request_id=request_id,
+        job_id=job_id,
         query_params={"citation": citation, "max_nodes": max_nodes},
         citation_count=citation_count,
         event="get_network_statistics",
@@ -535,6 +556,7 @@ async def get_network_statistics_impl(
             if temporal and list(temporal.values())[-1] > list(temporal.values())[0]
             else "stable",
         },
+        "job_id": job_id,
     }
 
 
@@ -857,6 +879,7 @@ async def build_citation_network(
     max_nodes: int = 100,
     include_treatments: bool = True,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> CitationNetworkResult:
     """Build a citation network for a given case.
 
@@ -878,7 +901,12 @@ async def build_citation_network(
         - statistics: Network statistics and metrics
     """
     return await build_citation_network_impl(
-        citation, max_depth, max_nodes, include_treatments, request_id=request_id
+        citation,
+        max_depth,
+        max_nodes,
+        include_treatments,
+        request_id=request_id,
+        job_id=job_id,
     )
 
 
@@ -892,6 +920,7 @@ async def filter_citation_network(
     date_before: str | None = None,
     max_nodes: int = 100,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> CitationNetworkResult:
     """Build a filtered citation network showing only specific relationships.
 
@@ -917,6 +946,7 @@ async def filter_citation_network(
         date_before,
         max_nodes,
         request_id=request_id,
+        job_id=job_id,
     )
 
 
@@ -926,6 +956,7 @@ async def get_network_statistics(
     citation: str,
     max_nodes: int = 100,
     request_id: str | None = None,
+    job_id: str | None = None,
     enable_advanced_metrics: bool = True,
     enable_community_detection: bool = True,
     weight_by_court_level: bool = False,
@@ -955,6 +986,7 @@ async def get_network_statistics(
         citation,
         max_nodes,
         request_id=request_id,
+        job_id=job_id,
         enable_advanced_metrics=enable_advanced_metrics,
         enable_community_detection=enable_community_detection,
         weight_by_court_level=weight_by_court_level,

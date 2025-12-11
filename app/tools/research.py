@@ -107,6 +107,7 @@ async def _analyze_citation(
     scope: str | None,
     mermaid_generator: MermaidGenerator,
     request_id: str | None,
+    job_id: str | None,
 ) -> dict[str, Any]:
     """Gather treatment, network, and visualization details for a citation."""
     query_params = {"citation": citation, "scope": scope}
@@ -117,6 +118,7 @@ async def _analyze_citation(
         logger,
         tool_name="research_pipeline_case",
         request_id=request_id,
+        job_id=job_id,
         query_params=query_params,
         event="research_pipeline_case",
     ):
@@ -125,13 +127,16 @@ async def _analyze_citation(
         if "error" in lookup:
             return {"citation": citation, "error": lookup.get("error", "Lookup failed")}
 
-        treatment = await check_case_validity_impl(citation, request_id=request_id)
+        treatment = await check_case_validity_impl(
+            citation, request_id=request_id, job_id=job_id
+        )
         network = await build_citation_network_impl(
             citation=citation,
             max_depth=settings.network_max_depth,
             max_nodes=settings.max_citing_cases,
             include_treatments=True,
             request_id=request_id,
+            job_id=job_id,
         )
 
         mermaid = None
@@ -166,6 +171,7 @@ async def run_research_pipeline_impl(
     scope: str | None = None,
     quotes: list[dict[str, str]] | None = None,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute a coordinated research workflow across citations and questions.
 
@@ -188,12 +194,16 @@ async def run_research_pipeline_impl(
     case_results = []
     for citation in citations:
         case_results.append(
-            await _analyze_citation(citation, scope, mermaid_generator, request_id)
+            await _analyze_citation(
+                citation, scope, mermaid_generator, request_id, job_id
+            )
         )
 
     quote_results: dict[str, Any] | None = None
     if quotes:
-        quote_results = await batch_verify_quotes_impl(quotes, request_id=request_id)
+        quote_results = await batch_verify_quotes_impl(
+            quotes, request_id=request_id, job_id=job_id
+        )
 
     summary_lines: list[str] = ["# Research Pipeline Summary"]
     if scope:
@@ -243,6 +253,7 @@ async def run_research_pipeline_impl(
         "Research pipeline completed",
         tool_name="run_research_pipeline",
         request_id=request_id,
+        job_id=job_id,
         query_params={"citation_count": len(citations)},
     )
 
@@ -252,6 +263,7 @@ async def run_research_pipeline_impl(
         "quotes": quote_results,
         "key_questions": questions,
         "scope": scope,
+        "job_id": job_id,
     }
 
 
@@ -263,6 +275,7 @@ async def run_research_pipeline(
     scope: str | None = None,
     quotes: list[dict[str, str]] | None = None,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute a coordinated research workflow across citations and questions.
 
@@ -278,7 +291,9 @@ async def run_research_pipeline(
     Returns:
         Dictionary containing a markdown summary and machine-readable sections.
     """
-    return await run_research_pipeline_impl(citations, key_questions, scope, quotes, request_id)
+    return await run_research_pipeline_impl(
+        citations, key_questions, scope, quotes, request_id, job_id
+    )
 
 
 @research_server.tool()
@@ -287,6 +302,7 @@ async def brief_check_pipeline(
     citations: list[str],
     quotes: list[dict[str, str]] | None = None,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Run a concise validity + quote check preset for multiple citations.
 
@@ -307,6 +323,7 @@ async def brief_check_pipeline(
         scope=None,
         quotes=quotes,
         request_id=request_id,
+        job_id=job_id,
     )
 
     if "error" in pipeline_result:

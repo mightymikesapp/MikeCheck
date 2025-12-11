@@ -70,6 +70,8 @@ class CitationNetworkBuilder:
         root_case: CourtListenerCase,
         citing_cases: list[CourtListenerCase],
         treatments: list[dict[str, object]] | None = None,
+        *,
+        job_id: str | None = None,
     ) -> CitationNetwork:
         """Build a citation network from a root case and its citing cases.
 
@@ -87,6 +89,7 @@ class CitationNetworkBuilder:
             tool_name="citation_network_builder",
             query_params={"root_case": root_case.get("citation")},
             event="build_network",
+            job_id=job_id,
         )
 
         nodes: dict[str, CaseNode] = {}
@@ -116,6 +119,9 @@ class CitationNetworkBuilder:
                 treatment_map[citing_citation] = treatment
 
         # Add citing cases as nodes and edges
+        total_citing_cases = len(citing_cases)
+        progress_interval = 10
+
         for i, citing_case in enumerate(citing_cases):
             if len(nodes) >= self.max_nodes:
                 logger.warning(f"Reached max nodes limit ({self.max_nodes}), stopping")
@@ -155,6 +161,23 @@ class CitationNetworkBuilder:
             citing_counts[root_citation] += 1
             cited_counts[citing_citation] += 1
 
+            if total_citing_cases >= progress_interval:
+                processed = i + 1
+                if processed % progress_interval == 0 or processed == total_citing_cases:
+                    log_event(
+                        logger,
+                        "Processed citing cases",
+                        tool_name="citation_network_builder",
+                        query_params={"root_case": root_citation},
+                        citation_count=processed,
+                        extra_context={
+                            "completed": processed,
+                            "total": total_citing_cases,
+                        },
+                        event="build_network_progress",
+                        job_id=job_id,
+                    )
+
         log_event(
             logger,
             "Built citation network",
@@ -163,6 +186,7 @@ class CitationNetworkBuilder:
             citation_count=len(edges),
             extra_context={"node_count": len(nodes), "max_depth": max(depth_map.values())},
             event="build_network_complete",
+            job_id=job_id,
         )
 
         return CitationNetwork(

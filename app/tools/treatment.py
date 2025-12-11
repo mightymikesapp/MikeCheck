@@ -65,7 +65,9 @@ def _coerce_cases(raw_results: list[Any]) -> list[CourtListenerCase]:
 
 # Implementation functions (can be called directly or via MCP tools)
 async def check_case_validity_impl(
-    citation: str, request_id: str | None = None
+    citation: str,
+    request_id: str | None = None,
+    job_id: str | None = None,
 ) -> TreatmentResult:
     """Check if a case is still good law by analyzing citing cases.
 
@@ -86,6 +88,7 @@ async def check_case_validity_impl(
         logger,
         tool_name="check_case_validity",
         request_id=request_id,
+        job_id=job_id,
         query_params={"citation": citation},
         event="check_case_validity",
     ):
@@ -96,6 +99,7 @@ async def check_case_validity_impl(
             return {
                 "error": f"Could not find case: {target_case.get('error')}",
                 "citation": citation,
+                "job_id": job_id,
             }
 
         # Step 2: Find citing cases
@@ -115,6 +119,7 @@ async def check_case_validity_impl(
                 ),
                 "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
                 "incomplete_data": True,
+                "job_id": job_id,
             }
 
         citing_cases = _coerce_cases(raw_results)
@@ -128,12 +133,14 @@ async def check_case_validity_impl(
                 ),
                 "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
                 "incomplete_data": True,
+                "job_id": job_id,
             }
         log_event(
             logger,
             "Citing cases located",
             tool_name="check_case_validity",
             request_id=request_id,
+            job_id=job_id,
             query_params={"citation": citation},
             citation_count=len(citing_cases),
             extra_context={
@@ -145,9 +152,26 @@ async def check_case_validity_impl(
 
         # Step 3: First pass - analyze all cases with snippets
         initial_treatments: list[tuple[CourtListenerCase, TreatmentAnalysis]] = []
-        for citing_case in citing_cases:
+        total_cases = len(citing_cases)
+        progress_interval = 10
+
+        for index, citing_case in enumerate(citing_cases, 1):
             analysis = classifier.classify_treatment(citing_case, citation)
             initial_treatments.append((citing_case, analysis))
+
+            if total_cases >= progress_interval:
+                if index % progress_interval == 0 or index == total_cases:
+                    log_event(
+                        logger,
+                        "Analyzed citing cases",
+                        tool_name="check_case_validity",
+                        request_id=request_id,
+                        job_id=job_id,
+                        query_params={"citation": citation},
+                        citation_count=index,
+                        extra_context={"completed": index, "total": total_cases},
+                        event="check_case_validity_progress",
+                    )
 
         # Step 4: Identify cases needing full text analysis
         strategy = settings.fetch_full_text_strategy
@@ -162,6 +186,7 @@ async def check_case_validity_impl(
             "Full text selection complete",
             tool_name="check_case_validity",
             request_id=request_id,
+            job_id=job_id,
             query_params={"citation": citation},
             extra_context={
                 "strategy": strategy,
@@ -204,6 +229,7 @@ async def check_case_validity_impl(
                             "Enhanced analysis with full text",
                             tool_name="check_case_validity",
                             request_id=request_id,
+                            job_id=job_id,
                             query_params={"citation": citation},
                             event="full_text_analysis",
                         )
@@ -217,6 +243,7 @@ async def check_case_validity_impl(
                         level=logging.WARNING,
                         tool_name="check_case_validity",
                         request_id=request_id,
+                        job_id=job_id,
                         query_params={"citation": citation},
                         event="full_text_error",
                     )
@@ -256,6 +283,7 @@ async def check_case_validity_impl(
             "Completed analysis",
             tool_name="check_case_validity",
             request_id=request_id,
+            job_id=job_id,
             query_params={"citation": citation},
             citation_count=len(treatments),
             extra_context={"full_text_count": full_text_count},
@@ -308,6 +336,7 @@ async def check_case_validity_impl(
                 "warnings": result_warnings,
                 "failed_requests": failed_requests,
                 "incomplete_data": incomplete_data,
+                "job_id": job_id,
                 "recommendation": (
                     "Manual review recommended"
                     if not aggregated.is_good_law or aggregated.negative_count > 0
@@ -334,6 +363,7 @@ async def check_case_validity_impl(
                 "incomplete_data": _coerce_incomplete_flag(
                     citing_cases_result.get("incomplete_data")
                 ),
+                "job_id": job_id,
                 "recommendation": "Case has not been cited. Validity uncertain.",
             }
 
@@ -345,6 +375,7 @@ async def get_citing_cases_impl(
     treatment_filter: str | None = None,
     limit: int = 20,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Get cases that cite a given citation, optionally filtered by treatment type.
 
@@ -362,6 +393,7 @@ async def get_citing_cases_impl(
         logger,
         tool_name="get_citing_cases",
         request_id=request_id,
+        job_id=job_id,
         query_params={"citation": citation, "treatment_filter": treatment_filter, "limit": limit},
         event="get_citing_cases",
     ):
@@ -381,6 +413,7 @@ async def get_citing_cases_impl(
                 "failed_requests": _coerce_failed_requests(
                     citing_cases_result.get("failed_requests")
                 ),
+                "job_id": job_id,
             }
 
         citing_cases = _coerce_cases(raw_results)
@@ -393,7 +426,10 @@ async def get_citing_cases_impl(
 
         # Analyze treatment
         treatments = []
-        for citing_case in citing_cases:
+        total_cases = len(citing_cases)
+        progress_interval = 10
+
+        for index, citing_case in enumerate(citing_cases, 1):
             analysis = classifier.classify_treatment(citing_case, citation)
 
             # Apply filter if specified
@@ -418,11 +454,26 @@ async def get_citing_cases_impl(
                 }
             )
 
+            if total_cases >= progress_interval:
+                if index % progress_interval == 0 or index == total_cases:
+                    log_event(
+                        logger,
+                        "Citing case analysis progress",
+                        tool_name="get_citing_cases",
+                        request_id=request_id,
+                        job_id=job_id,
+                        query_params={"citation": citation, "treatment_filter": treatment_filter},
+                        citation_count=index,
+                        extra_context={"completed": index, "total": total_cases},
+                        event="get_citing_cases_progress",
+                    )
+
         log_event(
             logger,
             "Citing cases analyzed",
             tool_name="get_citing_cases",
             request_id=request_id,
+            job_id=job_id,
             query_params={"citation": citation, "treatment_filter": treatment_filter},
             citation_count=len(treatments),
         )
@@ -435,6 +486,7 @@ async def get_citing_cases_impl(
             "incomplete_data": incomplete_data,
             "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
             "failed_requests": failed_requests,
+            "job_id": job_id,
         }
 
 
@@ -448,7 +500,7 @@ treatment_server: FastMCP[ToolPayload] = FastMCP(
 @treatment_server.tool()
 @tool_logging("check_case_validity")
 async def check_case_validity(
-    citation: str, request_id: str | None = None
+    citation: str, request_id: str | None = None, job_id: str | None = None
 ) -> TreatmentResult:
     """Check if a case is still good law by analyzing citing cases.
 
@@ -482,7 +534,9 @@ async def check_case_validity(
             ...
         }
     """
-    return await check_case_validity_impl(citation, request_id=request_id)
+    return await check_case_validity_impl(
+        citation, request_id=request_id, job_id=job_id
+    )
 
 
 @treatment_server.tool()
@@ -492,6 +546,7 @@ async def get_citing_cases(
     treatment_filter: str | None = None,
     limit: int = 20,
     request_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Get cases that cite a given citation, optionally filtered by treatment type.
 
@@ -517,5 +572,5 @@ async def get_citing_cases(
         }
     """
     return await get_citing_cases_impl(
-        citation, treatment_filter, limit, request_id=request_id
+        citation, treatment_filter, limit, request_id=request_id, job_id=job_id
     )

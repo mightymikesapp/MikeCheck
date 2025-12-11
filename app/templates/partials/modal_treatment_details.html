@@ -1,4 +1,4 @@
-<div class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true" x-data="{ open: true }">
+<div class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true" x-data="{ open: true }" @keydown.escape.window="open = false; setTimeout(() => $el.closest('[role=dialog]').remove(), 300)">
   <!-- Backdrop -->
   <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
        x-show="open" x-transition.opacity

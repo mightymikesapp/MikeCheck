@@ -1,7 +1,7 @@
 # Legal Research Assistant MCP - Tool Reference Guide
 
 **Version**: 0.1.0
-**Total Tools**: 18
+**Total Tools**: 19
 **Status**: ✅ All tools operational
 
 ---
@@ -13,7 +13,7 @@
 3. [Quote Verification Tools](#quote-verification-tools) (2 tools)
 4. [Citation Network Tools](#citation-network-tools) (5 tools)
 5. [Semantic Search Tools](#semantic-search-tools) (3 tools)
-6. [Research Pipeline Tools](#research-pipeline-tools) (2 tools)
+6. [Research Pipeline Tools](#research-pipeline-tools) (3 tools)
 7. [Cache Management Tools](#cache-management-tools) (2 tools)
 
 ---
@@ -433,29 +433,27 @@ result = await purge_memory()
 
 ## Research Pipeline Tools
 
-### `run_research_pipeline(primary_citation: str, quotes_to_verify: list = None) → dict`
+### `run_research_pipeline(citations: list[str], key_questions: list[str] | None = None, scope: str | None = None, quotes: list[dict] | None = None) → dict`
 
-**Purpose**: Execute a comprehensive research workflow combining multiple tools
+**Purpose**: Execute a comprehensive research workflow combining citation lookup, treatment analysis, quote verification, and citation network building.
 
 **Parameters**:
-- `primary_citation` (str): Main case to analyze
-- `quotes_to_verify` (list): Quotes to check
-- `max_network_depth` (int): Citation network depth
-- `max_network_nodes` (int): Network size limit
-- `semantic_search_enabled` (bool): Use semantic search
+- `citations` (list[str]): Cases to analyze.
+- `key_questions` (list[str], optional): Research questions to highlight.
+- `scope` (str, optional): Jurisdiction or scope note for the summary.
+- `quotes` (list[dict], optional): Quotes to verify against the citations.
 
 **Returns**:
-- `treatment_analysis` (dict): Case validity assessment
-- `quote_verification` (dict): Quote verification results
-- `citation_network` (dict): Network analysis
-- `semantic_results` (dict, optional): Related cases
+- `summary_markdown` (str): Combined report covering cases, networks, and quotes.
+- `cases` (list): Case-level treatment and network details.
+- `quotes` (dict, optional): Batch quote verification results.
 
 **Example Use**:
 ```python
 pipeline = await run_research_pipeline(
-    primary_citation="410 U.S. 113",
-    quotes_to_verify=["the right of privacy"],
-    max_network_nodes=50
+    citations=["410 U.S. 113"],
+    key_questions=["How is the right of privacy treated?"],
+    quotes=[{"quote": "the right of privacy", "citation": "410 U.S. 113"}]
 )
 ```
 
@@ -465,6 +463,34 @@ pipeline = await run_research_pipeline(
 - One-stop research operation
 
 **Efficiency**: Runs all analyses in parallel where possible
+
+---
+
+### `brief_check_pipeline(citations: list[str], quotes: list[dict] | None = None) → dict`
+
+**Purpose**: Run a concise preset that focuses on case validity and quote verification without additional network or mermaid output unless already available.
+
+**Parameters**:
+- `citations` (list[str]): Cases to evaluate.
+- `quotes` (list[dict], optional): Quotes to verify alongside the validity check.
+
+**Returns**:
+- `summary_markdown` (str): Brief report spotlighting validity and quote results.
+- `cases` (list): Treatment outcomes for each citation.
+- `quotes` (dict, optional): Quote verification details when provided.
+
+**Example Use**:
+```python
+brief = await brief_check_pipeline(
+    citations=["410 U.S. 113", "995 F.3d 1085"],
+    quotes=[{"quote": "the right of privacy", "citation": "410 U.S. 113"}]
+)
+```
+
+**When to Use**:
+- Quick brief checks
+- Lightweight pre-submission audits
+- Focused validity + quote verification passes
 
 ---
 

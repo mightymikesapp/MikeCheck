@@ -494,22 +494,43 @@ from app.tools.research import run_research_pipeline
 
 # Execute comprehensive research workflow
 pipeline_result = await run_research_pipeline(
-    primary_citation="410 U.S. 113",
-    quotes_to_verify=[
-        "the right of privacy",
-        "State criminal abortion laws"
+    citations=["410 U.S. 113"],
+    key_questions=["How is the right of privacy treated?"],
+    quotes=[
+        {"quote": "the right of privacy", "citation": "410 U.S. 113"},
+        {"quote": "State criminal abortion laws", "citation": "410 U.S. 113"},
     ],
-    max_network_depth=3,
-    max_network_nodes=50,
-    semantic_search_enabled=True
 )
 
-print(f"Treatment: {pipeline_result['treatment_analysis']['overall_treatment']}")
-print(f"Quote Verification: {pipeline_result['quote_verification']['verified_count']}/{len(quotes_to_verify)}")
-print(f"Network Nodes: {len(pipeline_result['citation_network']['nodes'])}")
+for case in pipeline_result["cases"]:
+    print(f"Treatment: {case['treatment'].get('overall_treatment')}")
+
+print("Quote Verification Results:")
+for result in pipeline_result["quotes"]["results"]:
+    print(
+        f"- {result['citation']}: {'found' if result['found'] else 'missing'}"
+        f" (similarity {result['similarity']:.2f})"
+    )
 ```
 
-### Example 8: Manage Cache and Performance
+### Example 8: Quick Brief Check Preset
+
+```python
+from app.tools.research import brief_check_pipeline
+
+# Run a concise validity + quote audit without network/mermaid extras
+brief_result = await brief_check_pipeline(
+    citations=["410 U.S. 113", "995 F.3d 1085"],
+    quotes=[
+        {"quote": "the right of privacy", "citation": "410 U.S. 113"},
+        {"quote": "algorithmic recommendations", "citation": "995 F.3d 1085"},
+    ],
+)
+
+print(brief_result["summary_markdown"])
+```
+
+### Example 9: Manage Cache and Performance
 
 ```python
 from app.tools.cache_tools import cache_stats, cache_clear

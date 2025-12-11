@@ -27,6 +27,32 @@ async def test_build_citation_network_impl_case_not_found(mock_client):
 
 
 @pytest.mark.unit
+async def test_build_citation_network_impl_unexpected_results(mock_client):
+    """Gracefully handle non-list results from the API."""
+    root_case = {
+        "caseName": "Root Case",
+        "citation": ["123 U.S. 456"],
+        "dateFiled": "1990-01-01",
+        "court": "scotus",
+    }
+
+    mock_client.lookup_citation.return_value = root_case
+    mock_client.find_citing_cases.return_value = {
+        "results": "not-a-list",
+        "warnings": ["bad format"],
+        "failed_requests": [{"error": "timeout"}],
+        "incomplete_data": False,
+    }
+
+    result = await build_citation_network_impl("123 U.S. 456")
+
+    assert result["error"].startswith("Unexpected response format")
+    assert result["incomplete_data"] is True
+    assert result["warnings"] == ["bad format"]
+    assert result["root_citation"] == "123 U.S. 456"
+
+
+@pytest.mark.unit
 async def test_build_citation_network_impl_no_citing_cases(mock_client):
     """Test build_citation_network with no citing cases."""
     root_case = {

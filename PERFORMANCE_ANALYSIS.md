@@ -110,8 +110,8 @@ def find_quote_fuzzy(self, quote: str, source: str, max_matches: int = 5) -> lis
 **Complexity Analysis**:
 - Outer loop: O(n / (m/4)) = O(4n/m) iterations where n=source length, m=quote length
 - Inner loop: O(tolerance) = O(0.2m) iterations
-- `calculate_similarity()`: O(m) using SequenceMatcher
-- **Total: O(n × m) = O(n²)** for quote length proportional to source
+- `calculate_similarity()`: O(m²) using SequenceMatcher
+- **Total: O(n × m²) = O(n³)** for quote length proportional to source
 
 **Real-World Impact**:
 - Source text: 50,000 characters (typical legal opinion)

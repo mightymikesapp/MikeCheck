@@ -11,10 +11,20 @@ This server adds treatment analysis, citation networks, quote verification, and 
 - **Automated case validity checking** - Analyzes treatment signals from citing cases
 - **12 negative signal patterns** (overruled, abrogated, reversed, etc.)
 - **11 positive signal patterns** (followed, affirmed, adopted, etc.)
+- **Opinion-aware analysis** - Distinguishes between Majority, Concurrence, and Dissent signals
+- **Weighted validity** - Majority opinions drive validity; dissenting negative treatments generate warnings but preserve "good law" status
+- **Treatment Timelines** - Visualize how treatment patterns evolve over time with `treatment_timeline`
 - **Two-pass analysis** - Smart full-text fetching strategy (always, smart, negative_only, never)
 - **Confidence scoring** (0-1 scale) with detailed warnings
 - **Context extraction** showing relevant excerpts
-- **Research request ID tracking** - Correlation IDs for debugging and tracing
+
+### ✅ Issue Map / Doctrinal Clustering
+**Map citation clusters by legal issue** - Automatically group citing authorities by topic or doctrinal issue.
+
+- **Hybrid clustering** - Combines user-provided questions with auto-discovery
+- **Auto-discovery** - Extracts section headers (e.g., "II. Standing") and key phrases from citing text
+- **Doctrinal organization** - Helps visualize how different courts treat specific legal issues within a case
+- **Web UI Support** - Dedicated interface for generating issue maps from a primary case citation
 
 ### ✅ Quote Verification
 **Maintain academic integrity** - Verify that quotes accurately appear in cited cases.
@@ -109,7 +119,7 @@ uv run python -m app.server
 
 ### 🌐 Web UI
 
-Run the FastAPI-powered Web UI for PDF uploads and citation extraction:
+Run the FastAPI-powered Web UI for PDF uploads, citation extraction, and issue mapping:
 
 ```bash
 # Start the Web UI
@@ -119,7 +129,9 @@ uv run python -m app.api
 ```
 
 - **URL:** http://localhost:8000
-- **Experience:** "Drop in a PDF, auto-extract citations, and trigger treatment + quote verification in one click."
+- **Experience:**
+  - **Document Analyzer:** Drop in a PDF, auto-extract citations, and trigger treatment + quote verification.
+  - **Issue Map:** Enter a primary citation to cluster citing authorities by doctrinal issue.
 
 ## ⚙️ Configuration
 
@@ -195,34 +207,68 @@ After copying the template, adjust values in `.env` to match your environment an
 ### Treatment Analysis Tools
 
 #### `check_case_validity(citation: str) → dict`
-Analyzes whether a case is still good law by examining citing cases and treatment signals.
+Analyzes whether a case is still good law by examining citing cases and treatment signals. Now includes opinion-aware analysis (Majority vs Dissent).
 
 **Example:**
 ```python
 result = await check_case_validity("410 U.S. 113")
 ```
 
+#### `treatment_timeline(citation: str, buckets: str = "5y") → dict`
+Generates a histogram of treatment over time to visualize doctrinal drift.
+
 **Returns:**
 ```json
 {
   "citation": "410 U.S. 113",
-  "case_name": "Roe v. Wade",
-  "valid": false,
-  "confidence": 0.95,
-  "overall_treatment": "questioned",
-  "citing_cases_count": 12,
-  "treatment_summary": {
-    "negative_signals": 5,
-    "positive_signals": 3,
-    "neutral_citations": 4
-  },
-  "warnings": ["Case has been overruled", "Multiple negative treatments found"],
-  "recommendation": "Use with caution - significant negative treatment"
+  "bucket_size": "5y",
+  "buckets": [
+    {
+      "start_date": "1973-01-01",
+      "end_date": "1977-12-31",
+      "positive_count": 3,
+      "negative_count": 0,
+      "neutral_count": 5,
+      "key_cases": [...]
+    }
+  ],
+  "mermaid_timeline": "timeline..."
 }
 ```
 
 #### `get_citing_cases(citation: str, limit: int = 100) → dict`
 Retrieves all cases that cite a given citation with treatment classification.
+
+### Issue Map Tools
+
+#### `issue_map(primary_case: str, key_questions: list[str] = None) → dict`
+Cluster citing authorities by issue or topic using a hybrid of user-provided questions and auto-discovered section headers.
+
+**Example:**
+```python
+result = await issue_map(
+    primary_case="410 U.S. 113",
+    key_questions=["Privacy", "Standing"]
+)
+```
+
+**Returns:**
+```json
+{
+  "issues": [
+    {
+      "label": "Privacy",
+      "source": "user",
+      "supporting_cases": [...]
+    },
+    {
+      "label": "II. Standing",
+      "source": "auto_discovered",
+      "supporting_cases": [...]
+    }
+  ]
+}
+```
 
 ### Quote Verification Tools
 
@@ -663,6 +709,7 @@ legal-research-assistant-mcp/
 │   └── analysis/             # Core analysis modules
 │       ├── citation_network.py       # Network graph construction
 │       ├── mermaid_generator.py      # Mermaid diagram generation
+│       ├── issue_discovery.py        # Issue clustering heuristics
 │       ├── quote_matcher.py          # Quote matching with fuzzy search
 │       ├── semantic_search.py        # Vector-based similarity search
 │       └── treatment_classifier.py   # Signal detection & classification
@@ -719,9 +766,10 @@ legal-research-assistant-mcp/
 - [x] Export formats (GraphML, JSON)
 - [x] Research orchestration tools (`run_research_pipeline`, `issue_map`)
 - [x] Semantic search with vector embeddings and re-ranking
+- [x] Doctrinal clustering and Issue Maps
 - [x] Cache management tools
 - [x] Comprehensive test coverage (285+ tests)
-- [x] Web UI with HTMX, Tailwind & Alpine (File upload, PDF extraction, citation extraction)
+- [x] Web UI with HTMX, Tailwind & Alpine (File upload, PDF extraction, citation extraction, Issue Maps)
 
 ### 🎯 High-priority improvements
 

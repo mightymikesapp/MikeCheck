@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections import defaultdict
 from typing import Any
 
 from fastmcp import FastMCP
 
+from app.analysis.issue_discovery import IssueDiscoverer
 from app.analysis.mermaid_generator import MermaidGenerator
 from app.config import get_settings
 from app.logging_config import tool_logging
@@ -173,18 +176,7 @@ async def run_research_pipeline_impl(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> dict[str, Any]:
-    """Execute a coordinated research workflow across citations and questions.
-
-    Args:
-        citations: List of citations to analyze.
-        key_questions: Optional research questions.
-        scope: Optional scope or jurisdiction focus.
-        quotes: Optional list of quotes to verify.
-
-    Returns:
-        Dictionary containing a markdown summary and machine-readable sections.
-    """
-
+    """Execute a coordinated research workflow across citations and questions."""
     if not citations:
         return {"error": "At least one citation is required"}
 
@@ -277,20 +269,7 @@ async def run_research_pipeline(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> dict[str, Any]:
-    """Execute a coordinated research workflow across citations and questions.
-
-    This tool orchestrates citation lookup, treatment classification, quote verification,
-    citation network building, and mermaid rendering to produce a structured report.
-
-    Args:
-        citations: List of citations to analyze.
-        key_questions: Optional research questions to guide the summary.
-        scope: Optional scope or jurisdiction focus to annotate results.
-        quotes: Optional list of quotes to verify.
-
-    Returns:
-        Dictionary containing a markdown summary and machine-readable sections.
-    """
+    """Execute a coordinated research workflow across citations and questions."""
     return await run_research_pipeline_impl(
         citations, key_questions, scope, quotes, request_id, job_id
     )
@@ -304,19 +283,7 @@ async def brief_check_pipeline(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run a concise validity + quote check preset for multiple citations.
-
-    This preset accepts a list of `citations` and optional `quotes` to verify. It
-    returns a markdown summary focused on case validity findings and quote
-    verification outcomes, plus the underlying machine-readable results. Network
-    or mermaid details are only referenced if they were already produced by the
-    shared research pipeline helpers.
-
-    Returns:
-        Dictionary with `summary_markdown`, `cases`, and optional `quotes` data
-        in the same structure as `run_research_pipeline`.
-    """
-
+    """Run a concise validity + quote check preset for multiple citations."""
     pipeline_result = await run_research_pipeline_impl(
         citations=citations,
         key_questions=None,
@@ -338,83 +305,131 @@ async def brief_check_pipeline(
 
 
 async def issue_map_impl(
-    citations: list[str],
+    citations: list[str] | None = None,
+    primary_case: str | None = None,
     key_questions: list[str] | None = None,
     scope: str | None = None,
     request_id: str | None = None,
 ) -> dict[str, Any]:
     """Create an issue map linking key questions to cited authorities.
 
-    Args:
-        citations: Citations to analyze for issue coverage.
-        key_questions: Research questions to organize findings.
-        scope: Optional scope or jurisdiction focus.
-
-    Returns:
-        Dictionary with a markdown summary and structured issue map entries.
+    Now supports auto-discovery of issues if citations/text don't match provided questions.
     """
+    if not citations and not primary_case:
+        return {"error": "At least one citation or a primary case is required"}
 
-    if not citations:
-        return {"error": "At least one citation is required"}
-
+    client = get_client()
+    discoverer = IssueDiscoverer()
     questions = _format_key_questions(key_questions or [])
-    mermaid_generator = MermaidGenerator()
 
-    case_results = []
-    for citation in citations:
-        case_results.append(
-            await _analyze_citation(citation, scope, mermaid_generator, request_id)
-        )
+    # Collect cases to process with their text context
+    cases_to_process = []
 
-    issue_entries = []
-    for question in questions or ["General application"]:
-        entry_cases = []
-        for case in case_results:
-            entry_cases.append(
-                {
-                    "citation": case.get("citation"),
-                    "case_name": case.get("case_name"),
-                    "summary": case.get("summary"),
-                    "treatment": case.get("treatment"),
-                    "network_statistics": case.get("network", {}).get("statistics"),
-                }
-            )
+    if primary_case:
+        citing_result = await client.find_citing_cases(primary_case, limit=50, request_id=request_id)
+        for c in citing_result.get("results", []):
+            if not isinstance(c, dict): continue
+            cases_to_process.append({
+                "citation": c.get("citation", ["?"])[0],
+                "case_name": c.get("caseName"),
+                "text_context": c.get("snippet") or "",
+                "source": "citing_primary"
+            })
 
-        issue_entries.append(
-            {
-                "question": question,
-                "related_cases": entry_cases,
-                "scope": scope,
-            }
-        )
+    if citations:
+        for cite in citations:
+            if any(x["citation"] == cite for x in cases_to_process):
+                continue
 
-    summary_lines = ["# Issue Map", "## Questions"]
-    for entry in issue_entries:
-        summary_lines.append(f"- {entry['question']}")
+            c = await client.lookup_citation(cite, request_id=request_id)
+            if "error" in c: continue
 
-    summary_lines.append("\n## Related Authorities")
-    for case in case_results:
-        if case.get("error"):
-            summary_lines.append(f"- **{case['citation']}**: {case['error']}")
+            # For lookup results, we might not have a "citing snippet" because it's the case itself.
+            # But we can try to find what it talks about from syllabus.
+            cases_to_process.append({
+                "citation": cite,
+                "case_name": c.get("caseName"),
+                "text_context": c.get("syllabus") or c.get("snippet") or "",
+                "source": "user_list"
+            })
+
+    # Grouping Logic
+    issues: defaultdict[str, dict] = defaultdict(lambda: {
+        "source": "auto_discovered",
+        "supporting_cases": []
+    })
+
+    # Initialize user questions
+    for q in questions:
+        issues[q] = {"source": "user", "supporting_cases": []}
+
+    for case in cases_to_process:
+        text = case["text_context"]
+        citation = case["citation"]
+        matched = False
+
+        # 1. Try matching user questions
+        for q in questions:
+            # Simple keyword matching: checks if significant words from question appear in text
+            # This is "coarse" but fits the requirement.
+            keywords = [w.lower() for w in q.split() if len(w) > 4]
+            if keywords and any(k in text.lower() for k in keywords):
+                issues[q]["supporting_cases"].append({
+                    "citation": citation,
+                    "case_name": case["case_name"],
+                    "snippet": text[:200] + "..."
+                })
+                matched = True
+                break
+
+        if matched:
             continue
-        summary = case.get("summary") or "No treatment summary available"
-        summary_lines.append(
-            f"- **{case.get('citation')} – {case.get('case_name', 'Unknown case')}**: {summary}"
-        )
 
-    log_event(
-        logger,
-        "Issue map generated",
-        tool_name="issue_map",
-        request_id=request_id,
-        query_params={"citation_count": len(citations), "question_count": len(issue_entries)},
-    )
+        # 2. Auto-discovery
+        discovery = discoverer.discover_issue(text, citation)
+        label = discovery["label"]
+        source = discovery["source"]
+
+        # If label is generic, maybe group under "Other"
+        if label == "General Application" and not questions:
+             # Keep it
+             pass
+        elif label == "General Application":
+             label = "Unclassified"
+
+        if label not in issues:
+            issues[label] = {"source": "auto_discovered", "supporting_cases": []}
+
+        issues[label]["supporting_cases"].append({
+            "citation": citation,
+            "case_name": case["case_name"],
+            "snippet": text[:200] + "...",
+            "discovery_method": source
+        })
+
+    # Format output
+    final_issues = []
+    for label, data in issues.items():
+        if data["supporting_cases"]:
+            final_issues.append({
+                "label": label,
+                "source": data["source"],
+                "supporting_cases": data["supporting_cases"]
+            })
+
+    summary_lines = ["# Issue Map"]
+    if primary_case:
+        summary_lines.append(f"Primary Case: {primary_case}")
+
+    for issue in final_issues:
+        summary_lines.append(f"\n## {issue['label']} ({issue['source']})")
+        for case in issue['supporting_cases'][:5]: # Limit for summary
+            summary_lines.append(f"- **{case['citation']}**: {case['case_name']}")
 
     return {
         "summary_markdown": "\n".join(summary_lines),
-        "issues": issue_entries,
-        "cases": case_results,
-        "key_questions": questions,
+        "issues": final_issues,
+        "primary_case": primary_case,
         "scope": scope,
     }
 
@@ -422,39 +437,35 @@ async def issue_map_impl(
 @research_server.tool()
 @tool_logging("issue_map")
 async def issue_map(
-    citations: list[str],
+    citations: list[str] | None = None,
+    primary_case: str | None = None,
     key_questions: list[str] | None = None,
     scope: str | None = None,
     request_id: str | None = None,
 ) -> dict[str, Any]:
     """Create an issue map linking key questions to cited authorities.
 
-    Args:
-        citations: Citations to analyze for issue coverage.
-        key_questions: Research questions to organize findings.
-        scope: Optional scope or jurisdiction focus.
+    Can cluster citations by issue using user-provided questions or auto-discovery
+    from section headings.
 
-    Returns:
-        Dictionary with a markdown summary and structured issue map entries.
+    Args:
+        citations: Optional list of citations to analyze.
+        primary_case: Optional primary case to find citing cases for.
+        key_questions: Research questions to organize findings.
+        scope: Optional scope.
     """
-    return await issue_map_impl(citations, key_questions, scope, request_id)
+    return await issue_map_impl(citations, primary_case, key_questions, scope, request_id)
 
 
 @research_server.tool()
 @tool_logging("check_api_status")
 async def check_api_status(request_id: str | None = None) -> dict[str, Any]:
-    """Check the health and connectivity of the CourtListener API.
-
-    Returns:
-        Dictionary with status, latency, and endpoint details.
-    """
+    """Check the health and connectivity of the CourtListener API."""
     client = get_client()
     import time
 
     start_time = time.time()
     try:
-        # We'll try a lightweight lookup, e.g. a known case or just the root endpoint if supported
-        # For now, let's try to lookup Roe v. Wade as a health check
         result = await client.lookup_citation("410 U.S. 113", request_id=request_id)
         latency = time.time() - start_time
 
@@ -485,16 +496,7 @@ async def outline_support_pipeline_impl(
     related_limit: int = 5,
     request_id: str | None = None,
 ) -> dict[str, Any]:
-    """Generate a research outline combining semantic search and network context.
-
-    Args:
-        topic: Research topic or question to explore.
-        primary_case: Anchor citation for the outline.
-        related_limit: Maximum number of related authorities to include.
-
-    Returns:
-        Dictionary containing the markdown outline and structured sections.
-    """
+    """Generate a research outline combining semantic search and network context."""
 
     settings = get_settings()
     query_params = {

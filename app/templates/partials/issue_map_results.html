@@ -1,0 +1,56 @@
+<div class="space-y-6 animate-fade-in">
+    <div class="flex justify-between items-end border-b border-gray-200 pb-4">
+        <div>
+            <h3 class="text-2xl font-bold text-gray-900">Issue Map</h3>
+            <p class="text-gray-500 mt-1">Primary Case: <span class="font-mono text-black">{{ result.primary_case }}</span></p>
+        </div>
+        <div class="text-sm text-gray-500">
+            {{ result.issues|length }} issue groups found
+        </div>
+    </div>
+
+    {% if not result.issues %}
+    <div class="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
+        No issues identified or citing cases found.
+    </div>
+    {% endif %}
+
+    <div class="grid gap-6">
+        {% for issue in result.issues %}
+        <div class="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
+            <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <h4 class="font-bold text-lg text-gray-800">{{ issue.label }}</h4>
+                </div>
+                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full border
+                    {% if issue.source == 'user' %}
+                        bg-blue-50 text-blue-700 border-blue-200
+                    {% else %}
+                        bg-gray-100 text-gray-600 border-gray-200
+                    {% endif %}">
+                    {{ issue.source|replace('_', ' ')|title }}
+                </span>
+            </div>
+
+            <div class="divide-y divide-gray-100">
+                {% for case in issue.supporting_cases %}
+                <div class="p-4 hover:bg-gray-50 transition-colors">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="font-semibold text-gray-900">{{ case.case_name }}</span>
+                        <span class="font-mono text-xs text-gray-500">{{ case.citation }}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 italic leading-relaxed pl-3 border-l-2 border-gray-300">
+                        "...{{ case.snippet }}..."
+                    </p>
+                    {% if case.discovery_method and case.discovery_method != issue.source %}
+                    <div class="mt-2 text-xs text-gray-400">
+                        Method: {{ case.discovery_method }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>

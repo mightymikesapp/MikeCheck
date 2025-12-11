@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
-from app.tools.research import run_research_pipeline_impl
+from app.tools.research import run_research_pipeline_impl, issue_map_impl
 from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
 
@@ -182,6 +182,27 @@ async def run_research(request: ResearchRequest) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Research failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/research/issue_map_html")
+async def get_issue_map_html(
+    request: Request,
+    primary_case: str = Form(...),
+    key_questions: Optional[str] = Form(None)
+) -> Any:
+    """Generate issue map and return HTML."""
+    try:
+        questions_list = [q.strip() for q in key_questions.split("\n")] if key_questions else None
+        result = await issue_map_impl(primary_case=primary_case, key_questions=questions_list)
+        return templates.TemplateResponse(
+            "partials/issue_map_results.html",
+            {"request": request, "result": result}
+        )
+    except Exception as e:
+        logger.error(f"Issue map failed: {e}")
+        return templates.TemplateResponse(
+            "partials/error.html", {"request": request, "error": str(e)}
+        )
 
 
 @app.post("/herding/details_html")

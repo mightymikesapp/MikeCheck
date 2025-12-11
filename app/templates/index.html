@@ -49,72 +49,136 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Upload Section -->
-        <div class="mb-8" x-data="{ dragging: false }">
-            <form hx-post="/analyze/upload"
-                  hx-encoding="multipart/form-data"
-                  hx-target="#citations-body"
-                  hx-indicator="#upload-indicator"
-                  class="relative group">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ tab: 'document' }">
 
-                <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-black transition-colors bg-white cursor-pointer focus-within:ring-2 focus-within:ring-black focus-within:ring-offset-2"
-                     :class="{ 'border-black bg-gray-50': dragging }"
-                     @dragover.prevent="dragging = true"
-                     @dragleave.prevent="dragging = false"
-                     @drop.prevent="dragging = false; $refs.fileInput.files = $event.dataTransfer.files; $el.closest('form').requestSubmit()">
+        <!-- Tabs -->
+        <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-8 max-w-md">
+            <button @click="tab = 'document'"
+                    class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+                    :class="tab === 'document' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                Document Analyzer
+            </button>
+            <button @click="tab = 'issue_map'"
+                    class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+                    :class="tab === 'issue_map' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                Issue Map
+            </button>
+        </div>
 
-                    <input type="file" name="file" x-ref="fileInput" class="absolute inset-0 opacity-0 cursor-pointer"
-                           @change="$el.closest('form').requestSubmit()">
+        <!-- Document Analyzer Tab -->
+        <div x-show="tab === 'document'" x-cloak>
+            <!-- Upload Section -->
+            <div class="mb-8" x-data="{ dragging: false }">
+                <form hx-post="/analyze/upload"
+                      hx-encoding="multipart/form-data"
+                      hx-target="#citations-body"
+                      hx-indicator="#upload-indicator"
+                      class="relative group">
 
-                    <div class="space-y-2">
-                        <div class="mx-auto h-12 w-12 text-gray-400">
-                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
+                    <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-black transition-colors bg-white cursor-pointer focus-within:ring-2 focus-within:ring-black focus-within:ring-offset-2"
+                         :class="{ 'border-black bg-gray-50': dragging }"
+                         @dragover.prevent="dragging = true"
+                         @dragleave.prevent="dragging = false"
+                         @drop.prevent="dragging = false; $refs.fileInput.files = $event.dataTransfer.files; $el.closest('form').requestSubmit()">
+
+                        <input type="file" name="file" x-ref="fileInput" class="absolute inset-0 opacity-0 cursor-pointer"
+                               @change="$el.closest('form').requestSubmit()">
+
+                        <div class="space-y-2">
+                            <div class="mx-auto h-12 w-12 text-gray-400">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                            </div>
+                            <div class="text-gray-600 font-medium">Click to upload or drag and drop</div>
+                            <p class="text-xs text-gray-500">PDF or TXT up to 10MB</p>
                         </div>
-                        <div class="text-gray-600 font-medium">Click to upload or drag and drop</div>
-                        <p class="text-xs text-gray-500">PDF or TXT up to 10MB</p>
+                    </div>
+                </form>
+                <div id="upload-indicator" class="htmx-indicator w-full mt-2">
+                     <div class="h-1 w-full bg-gray-200 overflow-hidden rounded-full">
+                        <div class="animate-progress w-full h-full bg-black origin-left-right"></div>
+                     </div>
+                     <p class="text-center text-xs text-gray-500 mt-1">Extracting citations...</p>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h2 class="font-semibold text-gray-800">Citations</h2>
+                    <div class="flex gap-2">
+                        <button id="research-all-btn"
+                                class="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 hidden">
+                            <span>Research All</span>
+                        </button>
                     </div>
                 </div>
-            </form>
-            <div id="upload-indicator" class="htmx-indicator w-full mt-2">
-                 <div class="h-1 w-full bg-gray-200 overflow-hidden rounded-full">
-                    <div class="animate-progress w-full h-full bg-black origin-left-right"></div>
-                 </div>
-                 <p class="text-center text-xs text-gray-500 mt-1">Extracting citations...</p>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-6 py-3 font-medium w-12">#</th>
+                                <th class="px-6 py-3 font-medium">Citation</th>
+                                <th class="px-6 py-3 font-medium">Analysis</th>
+                                <th class="px-6 py-3 font-medium text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="citations-body" class="divide-y divide-gray-100">
+                            <!-- Rows will be injected here -->
+                            <tr class="text-gray-500">
+                                <td colspan="4" class="px-6 py-8 text-center">No citations loaded yet. Upload a document to begin.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <!-- Results Section -->
-        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                <h2 class="font-semibold text-gray-800">Citations</h2>
-                <div class="flex gap-2">
-                    <button id="research-all-btn"
-                            class="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 hidden">
-                        <span>Research All</span>
-                    </button>
-                </div>
-            </div>
+        <!-- Issue Map Tab -->
+        <div x-show="tab === 'issue_map'" x-cloak>
+            <div class="max-w-3xl mx-auto">
+                <div class="bg-white border border-gray-200 rounded-xl p-6 mb-8 shadow-sm">
+                    <h2 class="text-lg font-bold mb-4">Generate Issue Map</h2>
+                    <p class="text-sm text-gray-500 mb-6">Enter a primary case to automatically cluster citing authorities by issue or topic.</p>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm text-left">
-                    <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th class="px-6 py-3 font-medium w-12">#</th>
-                            <th class="px-6 py-3 font-medium">Citation</th>
-                            <th class="px-6 py-3 font-medium">Analysis</th>
-                            <th class="px-6 py-3 font-medium text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="citations-body" class="divide-y divide-gray-100">
-                        <!-- Rows will be injected here -->
-                        <tr class="text-gray-500">
-                            <td colspan="4" class="px-6 py-8 text-center">No citations loaded yet. Upload a document to begin.</td>
-                        </tr>
-                    </tbody>
-                </table>
+                    <form hx-post="/research/issue_map_html"
+                          hx-target="#issue-map-results"
+                          hx-indicator="#issue-map-indicator"
+                          class="space-y-4">
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Primary Case Citation</label>
+                            <input type="text" name="primary_case" placeholder="e.g. 410 U.S. 113"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black outline-none transition-all">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Key Questions (Optional)</label>
+                            <textarea name="key_questions" rows="3" placeholder="Enter specific issues to look for, one per line..."
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black outline-none transition-all"></textarea>
+                        </div>
+
+                        <div class="pt-2">
+                            <button type="submit"
+                                    class="w-full bg-black text-white px-4 py-2.5 rounded-lg font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
+                                <span>Generate Map</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <div id="issue-map-indicator" class="htmx-indicator w-full mt-4">
+                        <div class="h-1 w-full bg-gray-200 overflow-hidden rounded-full">
+                           <div class="animate-progress w-full h-full bg-black origin-left-right"></div>
+                        </div>
+                        <p class="text-center text-xs text-gray-500 mt-1">Analyzing citing cases and extracting issues...</p>
+                   </div>
+                </div>
+
+                <div id="issue-map-results">
+                    <!-- Results will appear here -->
+                </div>
             </div>
         </div>
     </main>

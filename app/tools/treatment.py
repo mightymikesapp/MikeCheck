@@ -170,56 +170,46 @@ async def check_case_validity_impl(
         )
 
         # Step 5: Fetch full text and re-analyze (limited by max_full_text_fetches)
-        treatments: list[TreatmentAnalysis] = []
-        full_text_count = 0
+        # PERFORMANCE: Parallelized full-text fetching to avoid N+1 query pattern
+        import asyncio
 
+        # Collect all opinion IDs that need fetching
+        fetch_tasks: list[tuple[CourtListenerCase, TreatmentAnalysis, int]] = []
         for citing_case, initial_analysis in initial_treatments:
-            # Check if this case needs full text and we haven't hit the limit
-            needs_full_text = any(
-                c is citing_case for c, _ in cases_for_full_text
-            ) and full_text_count < settings.max_full_text_fetches
+            needs_full_text = any(c is citing_case for c, _ in cases_for_full_text)
+            if needs_full_text and len(fetch_tasks) < settings.max_full_text_fetches:
+                # Extract opinion IDs from the case
+                opinion_ids: list[int] = []
+                for op in citing_case.get("opinions", []):
+                    if not isinstance(op, dict):
+                        continue
+                    opinion_id = op.get("id")
+                    if isinstance(opinion_id, int):
+                        opinion_ids.append(opinion_id)
 
-            if needs_full_text:
+                if opinion_ids:
+                    fetch_tasks.append((citing_case, initial_analysis, opinion_ids[0]))
+
+        # Fetch all full texts in parallel with concurrency control
+        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent requests
+
+        async def fetch_with_limit(case: CourtListenerCase, analysis: TreatmentAnalysis, opinion_id: int):
+            """Fetch full text with semaphore-controlled concurrency."""
+            async with semaphore:
                 try:
-                    # Extract opinion IDs from the case
-                    opinion_ids: list[int] = []
-                    for op in citing_case.get("opinions", []):
-                        if not isinstance(op, dict):
-                            continue
-                        opinion_id = op.get("id")
-                        if isinstance(opinion_id, int):
-                            opinion_ids.append(opinion_id)
-
-                    if opinion_ids:
-                        # Fetch full text for first opinion
-                        opinion_id = opinion_ids[0]
-
-                        full_text = await client.get_opinion_full_text(
-                            opinion_id, request_id=request_id
+                    full_text = await client.get_opinion_full_text(opinion_id, request_id=request_id)
+                    if full_text:
+                        log_event(
+                            logger,
+                            "Enhanced analysis with full text",
+                            tool_name="check_case_validity",
+                            request_id=request_id,
+                            query_params={"citation": citation},
+                            event="full_text_analysis",
                         )
-
-                        if full_text:
-                            # Re-analyze with full text
-                            enhanced_analysis = classifier.classify_treatment(
-                                citing_case, citation, full_text=full_text
-                            )
-                            treatments.append(enhanced_analysis)
-                            full_text_count += 1
-                            log_event(
-                                logger,
-                                "Enhanced analysis with full text",
-                                tool_name="check_case_validity",
-                                request_id=request_id,
-                                query_params={"citation": citation},
-                                event="full_text_analysis",
-                            )
-                        else:
-                            # No full text available, use initial analysis
-                            treatments.append(initial_analysis)
+                        return (case, classifier.classify_treatment(case, citation, full_text=full_text), True)
                     else:
-                        # No opinion IDs, use initial analysis
-                        treatments.append(initial_analysis)
-
+                        return (case, analysis, False)
                 except Exception as e:
                     log_event(
                         logger,
@@ -230,9 +220,35 @@ async def check_case_validity_impl(
                         query_params={"citation": citation},
                         event="full_text_error",
                     )
-                    treatments.append(initial_analysis)
+                    return (case, analysis, False)
+
+        # Execute all fetches in parallel
+        fetch_results = await asyncio.gather(
+            *[fetch_with_limit(case, analysis, op_id) for case, analysis, op_id in fetch_tasks],
+            return_exceptions=True
+        )
+
+        # Build treatments list, matching original order and handling results
+        full_text_count = 0
+        case_to_enhanced_analysis: dict[int, TreatmentAnalysis] = {}
+
+        for result in fetch_results:
+            if isinstance(result, Exception):
+                continue
+            case, enhanced_analysis, success = result
+            if success:
+                full_text_count += 1
+                # Use case ID as key to map enhanced analysis back
+                case_id = case.get("id") or id(case)
+                case_to_enhanced_analysis[case_id] = enhanced_analysis
+
+        # Build final treatments list in original order
+        treatments: list[TreatmentAnalysis] = []
+        for citing_case, initial_analysis in initial_treatments:
+            case_id = citing_case.get("id") or id(citing_case)
+            if case_id in case_to_enhanced_analysis:
+                treatments.append(case_to_enhanced_analysis[case_id])
             else:
-                # Use initial analysis
                 treatments.append(initial_analysis)
 
         log_event(

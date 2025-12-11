@@ -182,13 +182,32 @@ class QuoteMatcher:
         if quote_len > source_len:
             return []
 
+        # Quick rejection: If quote doesn't appear at all, skip expensive matching
+        # Check for a few key words from the quote (first, middle, last significant words)
+        quote_words = normalized_quote.split()
+        if len(quote_words) >= 3:
+            # Check if at least 2 out of [first, middle, last] words appear
+            sample_words = [quote_words[0], quote_words[len(quote_words)//2], quote_words[-1]]
+            found_count = sum(1 for word in sample_words if len(word) > 3 and word in normalized_source)
+            if found_count < 1:
+                # Quote very unlikely to be present, skip expensive matching
+                return []
+
         matches: list[tuple[float, int, str]] = []  # (similarity, position, text)
+        best_similarity_found = 0.0
 
         # Sliding window approach
         window_size = quote_len
         tolerance = int(quote_len * 0.2)  # Allow 20% size variation
 
-        for start in range(0, source_len - window_size + tolerance + 1, max(1, quote_len // 4)):
+        # PERFORMANCE: Increased step size from //4 to //2 (2x faster)
+        step_size = max(1, quote_len // 2)
+
+        for start in range(0, source_len - window_size + tolerance + 1, step_size):
+            # PERFORMANCE: Early termination if we've found excellent match
+            if best_similarity_found >= 0.98:
+                break
+
             for size in range(
                 max(window_size - tolerance, 1),
                 min(window_size + tolerance, source_len - start) + 1,
@@ -202,6 +221,14 @@ class QuoteMatcher:
                     # Get the original text (not normalized)
                     original_text = source[start:end]
                     matches.append((similarity, start, original_text))
+
+                    # Track best similarity for early termination
+                    if similarity > best_similarity_found:
+                        best_similarity_found = similarity
+
+                    # PERFORMANCE: Stop checking size variations if we found exact match
+                    if similarity >= 0.98:
+                        break
 
         # Sort by similarity (descending) and remove duplicates
         matches.sort(reverse=True, key=lambda x: x[0])

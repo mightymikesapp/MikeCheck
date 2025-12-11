@@ -350,6 +350,8 @@ async def batch_verify_quotes_impl(
     Returns:
         Dictionary with batch verification results
     """
+    import asyncio
+
     with log_operation(
         logger,
         tool_name="batch_verify_quotes",
@@ -357,11 +359,12 @@ async def batch_verify_quotes_impl(
         query_params={"total_quotes": len(quotes)},
         event="batch_verify_quotes",
     ):
-        results = []
+        # Build tasks for parallel execution
+        tasks = []
         for i, quote_data in enumerate(quotes, 1):
             log_event(
                 logger,
-                "Processing quote for verification",
+                "Queuing quote for verification",
                 tool_name="batch_verify_quotes",
                 request_id=request_id,
                 query_params={"index": i, "citation": quote_data.get("citation")},
@@ -372,19 +375,35 @@ async def batch_verify_quotes_impl(
             pinpoint = quote_data.get("pinpoint")
 
             if not quote or not citation:
-                results.append(
-                    {
+                # Create a coroutine that returns error result
+                async def return_error(q=quote, c=citation):
+                    return {
                         "error": "Missing quote or citation",
-                        "quote": quote,
-                        "citation": citation,
+                        "quote": q,
+                        "citation": c,
                     }
+                tasks.append(return_error())
+            else:
+                tasks.append(
+                    verify_quote_impl(quote, citation, pinpoint, request_id=request_id)
                 )
-                continue
 
-            result = await verify_quote_impl(
-                quote, citation, pinpoint, request_id=request_id
-            )
-            results.append(result)
+        # Execute all verifications in parallel
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert any exceptions to error dictionaries
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    "error": f"Verification failed: {str(result)}",
+                    "quote": quotes[i].get("quote", ""),
+                    "citation": quotes[i].get("citation", ""),
+                })
+            else:
+                processed_results.append(result)
+
+        results = processed_results
 
         # Summary statistics
         total = len(results)

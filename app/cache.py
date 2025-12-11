@@ -4,6 +4,7 @@ This module provides a file-based cache implementation with granular TTLs
 and statistics tracking.
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -166,6 +167,30 @@ class CacheManager:
         except OSError as e:
             logger.warning(f"Failed to write cache {path}: {e}")
             self.stats["errors"] += 1
+
+    async def aget(self, cache_type: CacheType, key_params: dict[str, Any] | str) -> Any | None:
+        """Async retrieve an item from the cache.
+
+        Executes file I/O in a thread pool to avoid blocking the event loop.
+        """
+        if not self.enabled:
+            return None
+        return await asyncio.get_running_loop().run_in_executor(
+            None, self.get, cache_type, key_params
+        )
+
+    async def aset(
+        self, cache_type: CacheType, key_params: dict[str, Any] | str, data: Any
+    ) -> None:
+        """Async save an item to the cache.
+
+        Executes file I/O in a thread pool to avoid blocking the event loop.
+        """
+        if not self.enabled:
+            return
+        await asyncio.get_running_loop().run_in_executor(
+            None, self.set, cache_type, key_params, data
+        )
 
     def clear(self, cache_type: CacheType | None = None) -> int:
         """Clear the cache.

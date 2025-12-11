@@ -213,7 +213,7 @@ class CourtListenerClient:
         ):
             # Check cache
             if self.settings.courtlistener_search_cache_enabled:
-                cached_result = self.cache_manager.get(CacheType.SEARCH, params)
+                cached_result = await self.cache_manager.aget(CacheType.SEARCH, params)
                 if cached_result is not None:
                     return cast(dict[str, Any], cached_result)
 
@@ -227,7 +227,7 @@ class CourtListenerClient:
                 result = cast(dict[str, Any], response.json())
 
                 if self.settings.courtlistener_search_cache_enabled:
-                    self.cache_manager.set(CacheType.SEARCH, params, result)
+                    await self.cache_manager.aset(CacheType.SEARCH, params, result)
 
                 log_event(
                     logger,
@@ -264,7 +264,7 @@ class CourtListenerClient:
         cache_key = {"opinion_id": opinion_id}
 
         # Check cache
-        cached_opinion = self.cache_manager.get(CacheType.METADATA, cache_key)
+        cached_opinion = await self.cache_manager.aget(CacheType.METADATA, cache_key)
         if cached_opinion is not None:
             return cast(CourtListenerOpinion, cached_opinion)
 
@@ -284,7 +284,7 @@ class CourtListenerClient:
                 data = cast(CourtListenerOpinion, response.json())
 
                 # Write cache
-                self.cache_manager.set(CacheType.METADATA, cache_key, data)
+                await self.cache_manager.aset(CacheType.METADATA, cache_key, data)
                 self._write_cache(f"opinion_{opinion_id}", data)
 
                 log_event(
@@ -321,7 +321,7 @@ class CourtListenerClient:
         cache_key = {"opinion_id": opinion_id, "field": "full_text"}
 
         # Check cache
-        cached_text = self.cache_manager.get(CacheType.TEXT, cache_key)
+        cached_text = await self.cache_manager.aget(CacheType.TEXT, cache_key)
         if cached_text:
             return cast(str, cached_text)
 
@@ -357,7 +357,7 @@ class CourtListenerClient:
                             event="courtlistener_full_text",
                         )
                         # Write cache
-                        self.cache_manager.set(CacheType.TEXT, cache_key, text)
+                        await self.cache_manager.aset(CacheType.TEXT, cache_key, text)
                         return text
 
                 # Fallback to empty string if no text available
@@ -407,7 +407,7 @@ class CourtListenerClient:
         # Given we have CacheType.SEARCH, let's cache the final result.
 
         cache_key = {"citation_lookup": citation}
-        cached_result = self.cache_manager.get(CacheType.SEARCH, cache_key)
+        cached_result = await self.cache_manager.aget(CacheType.SEARCH, cache_key)
         if cached_result is not None:
             return cast(CourtListenerCase, cached_result)
 
@@ -477,7 +477,7 @@ class CourtListenerClient:
                 assert result_to_return is not None
 
                 if self.settings.courtlistener_search_cache_enabled:
-                    self.cache_manager.set(CacheType.SEARCH, cache_key, result_to_return)
+                    await self.cache_manager.aset(CacheType.SEARCH, cache_key, result_to_return)
                 return result_to_return
 
             except httpx.HTTPError as e:
@@ -508,7 +508,7 @@ class CourtListenerClient:
             List of citing cases with context
         """
         cache_key = {"citing_cases": citation, "limit": limit}
-        cached_results = self.cache_manager.get(CacheType.SEARCH, cache_key)
+        cached_results = await self.cache_manager.aget(CacheType.SEARCH, cache_key)
         if cached_results is not None:
             return cast(dict[str, object], cached_results)
 
@@ -660,7 +660,7 @@ class CourtListenerClient:
 
             if deduped_results:
                 deduped_results = deduped_results[:limit]
-                self.cache_manager.set(
+                await self.cache_manager.aset(
                     CacheType.SEARCH,
                     cache_key,
                     {

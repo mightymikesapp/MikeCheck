@@ -113,6 +113,10 @@ class Settings(BaseSettings):
         default=0.7,
         description="Minimum confidence threshold for validity assessments",
     )
+    treatment_classifier_workers: int = Field(
+        default=5,
+        description="Number of process pool workers for treatment classification",
+    )
     max_citing_cases: int = Field(
         default=100,
         description="Maximum number of citing cases to analyze",
@@ -186,6 +190,10 @@ class Settings(BaseSettings):
     enable_api_key_auth: bool = Field(
         default=False,
         description="Enable API key authentication for all protected endpoints",
+    )
+    allow_api_key_query_param: bool = Field(
+        default=False,
+        description="Allow API keys to be provided via query parameters (less secure)",
     )
     api_keys: str = Field(
         default="",

@@ -12,7 +12,7 @@ from typing import Any, cast
 from dateutil.relativedelta import relativedelta
 from fastmcp import FastMCP
 
-from app.analysis.treatment_classifier import TreatmentClassifier
+from app.analysis.treatment_classifier import TreatmentAnalysis, TreatmentClassifier
 from app.config import settings
 from app.logging_config import tool_logging
 from app.logging_utils import log_event, log_operation
@@ -134,12 +134,12 @@ async def check_case_validity_impl(
         # Using Semaphore(5) to limit concurrent analysis from start
         semaphore = asyncio.Semaphore(5)
 
-        async def analyze_case(case: CourtListenerCase) -> Any:
+        async def analyze_case(case: CourtListenerCase) -> TreatmentAnalysis:
             """Analyze case with concurrency limit."""
             async with semaphore:
                 return classifier.classify_treatment(case, citation)
 
-        analyses = await asyncio.gather(
+        analyses: list[TreatmentAnalysis | Exception] = await asyncio.gather(
             *[analyze_case(case) for case in citing_cases],
             return_exceptions=True,
         )
@@ -171,7 +171,11 @@ async def check_case_validity_impl(
 
         semaphore = asyncio.Semaphore(5)
 
-        async def fetch_with_limit(case, analysis, opinion_id):
+        async def fetch_with_limit(
+            case: CourtListenerCase,
+            analysis: TreatmentAnalysis,
+            opinion_id: int,
+        ) -> tuple[CourtListenerCase, TreatmentAnalysis, bool]:
             async with semaphore:
                 try:
                     full_text = await client.get_opinion_full_text(
@@ -187,7 +191,9 @@ async def check_case_validity_impl(
                 except Exception:
                     return (case, analysis, False)
 
-        fetch_results = await asyncio.gather(
+        fetch_results: list[
+            tuple[CourtListenerCase, TreatmentAnalysis, bool] | Exception
+        ] = await asyncio.gather(
             *[fetch_with_limit(case, analysis, op_id) for case, analysis, op_id in fetch_tasks],
             return_exceptions=True,
         )
@@ -311,12 +317,12 @@ async def get_citing_cases_impl(
         # Using Semaphore(5) to limit concurrent analysis
         semaphore = asyncio.Semaphore(5)
 
-        async def classify_with_limit(case: CourtListenerCase) -> Any:
+        async def classify_with_limit(case: CourtListenerCase) -> TreatmentAnalysis:
             """Classify case with concurrency limit."""
             async with semaphore:
                 return classifier.classify_treatment(case, citation)
 
-        analyses = await asyncio.gather(
+        analyses: list[TreatmentAnalysis | Exception] = await asyncio.gather(
             *[classify_with_limit(case) for case in citing_cases],
             return_exceptions=True,
         )
@@ -377,12 +383,12 @@ async def treatment_timeline_impl(
     # Using Semaphore(5) to limit concurrent analysis while respecting API rate limits
     semaphore = asyncio.Semaphore(5)
 
-    async def analyze_with_limit(case: CourtListenerCase) -> Any:
+    async def analyze_with_limit(case: CourtListenerCase) -> TreatmentAnalysis:
         """Analyze case with concurrency limit."""
         async with semaphore:
             return classifier.classify_treatment(case, citation)
 
-    analyses = await asyncio.gather(
+    analyses: list[TreatmentAnalysis | Exception] = await asyncio.gather(
         *[analyze_with_limit(case) for case in citing_cases],
         return_exceptions=True,
     )

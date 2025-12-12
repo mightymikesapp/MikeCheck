@@ -499,6 +499,10 @@ rate(api_auth_failures_total[5m])
 # Rate limit violations
 rate(rate_limit_exceeded_total[5m])
 
+# 2xx success rate (use regex match for partial status code)
+sum(rate(http_requests_total{status_code=~"^2..$"}[5m])) \
+  / sum(rate(http_requests_total[5m]))
+
 # By endpoint
 rate(rate_limit_exceeded_total{endpoint="/herding/analyze"}[5m])
 

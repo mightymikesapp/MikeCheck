@@ -6,6 +6,7 @@ serving as a free alternative to Shepard's Citations and KeyCite.
 
 import asyncio
 import logging
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from typing import Any, cast
 
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize classifier
 classifier = TreatmentClassifier()
+_classification_executor = ProcessPoolExecutor(max_workers=5)
 
 
 def _coerce_failed_requests(raw_value: Any) -> list[dict[str, object]]:
@@ -131,13 +133,18 @@ async def check_case_validity_impl(
         )
 
         # Parallelize initial analysis (MEDIUM Bottleneck #4 fix)
-        # Using Semaphore(5) to limit concurrent analysis from start
         semaphore = asyncio.Semaphore(5)
 
         async def analyze_case(case: CourtListenerCase) -> Any:
-            """Analyze case with concurrency limit."""
+            """Analyze case with concurrency limit via process pool."""
             async with semaphore:
-                return classifier.classify_treatment(case, citation)
+                loop = asyncio.get_running_loop()
+                return await loop.run_in_executor(
+                    _classification_executor,
+                    classifier.classify_treatment,
+                    case,
+                    citation,
+                )
 
         analyses = await asyncio.gather(
             *[analyze_case(case) for case in citing_cases],
@@ -308,13 +315,18 @@ async def get_citing_cases_impl(
         citing_cases = _coerce_cases(raw_results)
 
         # Parallelize classification (HIGH Bottleneck #3 fix)
-        # Using Semaphore(5) to limit concurrent analysis
         semaphore = asyncio.Semaphore(5)
 
         async def classify_with_limit(case: CourtListenerCase) -> Any:
-            """Classify case with concurrency limit."""
+            """Classify case with concurrency limit via process pool."""
             async with semaphore:
-                return classifier.classify_treatment(case, citation)
+                loop = asyncio.get_running_loop()
+                return await loop.run_in_executor(
+                    _classification_executor,
+                    classifier.classify_treatment,
+                    case,
+                    citation,
+                )
 
         analyses = await asyncio.gather(
             *[classify_with_limit(case) for case in citing_cases],

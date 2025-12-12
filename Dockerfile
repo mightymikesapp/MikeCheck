@@ -69,6 +69,13 @@ ENV SERVER_TYPE=fastapi
 
 # Entrypoint with flexible server selection
 ENTRYPOINT ["python", "-c"]
-CMD ["import subprocess, os; \
-subprocess_args = ['python', '-m', 'uvicorn', 'app.api:app', '--host', '0.0.0.0', '--port', '8000'] if os.getenv('SERVER_TYPE') == 'fastapi' else ['legal-research-mcp']; \
-subprocess.run(subprocess_args)"]
+CMD ["import os, sys; \
+server_type = os.getenv('SERVER_TYPE', 'fastapi').lower(); \
+if server_type == 'fastapi': \
+    argv = ['python', '-m', 'uvicorn', 'app.api:app', '--host', '0.0.0.0', '--port', '8000']; \
+elif server_type == 'mcp': \
+    argv = ['legal-research-mcp']; \
+else: \
+    sys.stderr.write(f'Unsupported SERVER_TYPE: {server_type}\\n'); \
+    sys.exit(1); \
+os.execvp(argv[0], argv)"]

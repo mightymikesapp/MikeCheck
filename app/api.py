@@ -86,6 +86,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(
             "Error during application lifecycle",
             extra={"event": "error", "error": str(e)},
+        logger.exception(
+            "Error during application lifecycle",
+            exc_info=True,
+            extra={"event": "error", "error": str(e)}
         )
     finally:
         # SHUTDOWN

@@ -7,3 +7,6 @@
 ## 2025-12-12 - Alpine.js Tabs & Keyboard Navigation
 **Learning:** Using simple buttons for tabs lacks ARIA semantics and standard keyboard behaviors (arrow navigation). Alpine.js makes it easy to add `role="tab"` and `@keydown` handlers, but one must remember to handle focus management explicitly (`$refs.xxx.focus()`) to match native tab behavior.
 **Action:** Always add `role="tablist"`, `aria-selected`, and arrow key support to Alpine.js tab implementations.
+## 2025-12-13 - HTMX Loading States with Group Modifiers
+**Learning:** `hx-disabled-elt` combined with the `.htmx-request` class on a parent `group` allows for elegant, no-JS loading states with distinct "disabled" vs "loading" visual treatments.
+**Action:** Use `group` on HTMX forms and `group-[.htmx-request]:hidden/flex` on button children to toggle content without complex CSS selectors.

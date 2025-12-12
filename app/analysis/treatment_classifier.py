@@ -160,9 +160,9 @@ class TreatmentClassifier:
         negation_patterns = [
             r"not\s+$",
             r"(?:did|does|do|will|would|could|can)\s+not\s+$",
-            r"(?:did|does|do|will|would|could|can)n't\s+$",
-            r"declined\s+to\s+$",
-            r"refused\s+to\s+$",
+            r"(?:did|does|do|will|would|could|ca)n't\s+$",
+            r"declin(?:ed|e)\s+to\s+$",
+            r"refus(?:ed|e)\s+to\s+$",
         ]
         self.negation_pattern = re.compile(
             r"\b(?:" + "|".join(f"(?:{p})" for p in negation_patterns) + ")", re.IGNORECASE
@@ -271,6 +271,7 @@ class TreatmentClassifier:
 
     @functools.lru_cache(maxsize=128)
     def _get_citation_patterns(self, citation: str) -> list[re.Pattern[str]]:
+        """Get compiled regex patterns for a citation (cached)."""
         """Return compiled regular-expression patterns to locate mentions of a citation in text.
 
         Always includes a pattern that matches the exact citation with flexible whitespace (e.g., spaces or tabs). If the citation matches a US-style reporter pattern like "123 U.S. 456" and is present in WELL_KNOWN_CASES, also includes a pattern that matches the corresponding well-known case name.
@@ -312,36 +313,6 @@ class TreatmentClassifier:
         contexts = self._extract_citation_contexts(text, citation)
 
         for context, position in contexts:
-            # Check for negative signals
-            for pattern, (signal, weight) in self.negative_patterns.items():
-                for match in pattern.finditer(context):
-                    if self._is_negated(context, match.start()):
-                        continue
-                    signals.append(
-                        TreatmentSignal(
-                            signal=signal,
-                            treatment_type=TreatmentType.NEGATIVE,
-                            position=position,
-                            context=context[:200],
-                            opinion_type=opinion_type,
-                        )
-                    )
-
-            # Check for positive signals
-            for pattern, (signal, weight) in self.positive_patterns.items():
-                for match in pattern.finditer(context):
-                    if self._is_negated(context, match.start()):
-                        continue
-                    signals.append(
-                        TreatmentSignal(
-                            signal=signal,
-                            treatment_type=TreatmentType.POSITIVE,
-                            position=position,
-                            context=context[:200],
-                            opinion_type=opinion_type,
-                        )
-                    )
-
             # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
             for match in self.combined_signal_pattern.finditer(context):
                 group_name = match.lastgroup

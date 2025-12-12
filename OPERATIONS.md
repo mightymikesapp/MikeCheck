@@ -1017,16 +1017,19 @@ kubectl set image deployment/legal-research-mcp \
 ### Configuration Updates
 
 ```bash
-# Update ConfigMap
-kubectl set env configmap/legal-research-config \
-  MODE=heavy \
-  MAX_CITING_CASES=150 \
-  -n legal-research
+# Update ConfigMap (legal-research namespace) to change MODE and MAX_CITING_CASES
+# Option A: strategic/JSON patch
+kubectl patch configmap/legal-research-config -n legal-research --type strategic -p '{"data":{"MODE":"heavy","MAX_CITING_CASES":"150"}}'
+# Or apply a JSON patch instead
+kubectl patch configmap/legal-research-config -n legal-research --type json -p '[{"op":"replace","path":"/data/MODE","value":"heavy"},{"op":"replace","path":"/data/MAX_CITING_CASES","value":"150"}]'
 
-# Rolling restart to pick up new config
+# Option B: edit interactively
+kubectl edit configmap/legal-research-config -n legal-research  # manually update MODE and MAX_CITING_CASES
+
+# Rolling restart required to pick up ConfigMap changes
 kubectl rollout restart deployment/legal-research-mcp -n legal-research
 
-# Verify
+# Verify rollout
 kubectl rollout status deployment/legal-research-mcp -n legal-research
 ```
 

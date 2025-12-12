@@ -210,12 +210,12 @@ class TreatmentClassifier:
     def _is_negated(self, text: str, position: int, window: int = 50) -> bool:
         """
         Determine whether a detected signal is negated by nearby preceding text.
-        
+
         Parameters:
             text (str): Full text containing the signal.
             position (int): Character index in `text` where the signal was detected.
             window (int): Number of characters before `position` to inspect for negation indicators (default 50).
-        
+
         Returns:
             bool: True if a negation indicator is found within the preceding window, False otherwise.
         """
@@ -226,10 +226,10 @@ class TreatmentClassifier:
     def _get_court_weight(self, court_id: str | None) -> float:
         """
         Compute a weight multiplier representing the hierarchical importance of a court.
-        
+
         Parameters:
             court_id (str | None): Identifier for the court (e.g., "scotus", "us", "ca9", "d2", "dist"). If None or empty, a default intermediate weight is used.
-        
+
         Returns:
             float: Weight used to scale confidence by court authority:
                 - 1.0 for the U.S. Supreme Court ("scotus" or "us"),
@@ -253,12 +253,12 @@ class TreatmentClassifier:
     def _map_opinion_type(self, op_type: str | None) -> str:
         """
         Normalize a raw CourtListener opinion type into a simplified category.
-        
+
         Parameters:
-        	op_type (str | None): Raw opinion type string from CourtListener (may be None).
-        
+                op_type (str | None): Raw opinion type string from CourtListener (may be None).
+
         Returns:
-        	str: One of "majority", "dissent", or "concurrence" corresponding to the simplified opinion category.
+                str: One of "majority", "dissent", or "concurrence" corresponding to the simplified opinion category.
         """
         if not op_type:
             return "majority"
@@ -270,20 +270,17 @@ class TreatmentClassifier:
         return "majority"  # lead, combined, per_curiam, etc.
 
     @functools.lru_cache(maxsize=128)
-    def _get_citation_patterns(self, citation: str) -> list[re.Pattern]:
-        """
-        Return compiled regular-expression patterns to locate mentions of a citation in text.
-        
+    def _get_citation_patterns(self, citation: str) -> list[re.Pattern[str]]:
+        """Return compiled regular-expression patterns to locate mentions of a citation in text.
+
         Always includes a pattern that matches the exact citation with flexible whitespace (e.g., spaces or tabs). If the citation matches a US-style reporter pattern like "123 U.S. 456" and is present in WELL_KNOWN_CASES, also includes a pattern that matches the corresponding well-known case name.
-        
-        Parameters:
+
+        Args:
             citation (str): The citation string to compile patterns for.
-        
+
         Returns:
             list[re.Pattern]: Compiled regex patterns that match the citation and, when applicable, its well-known case name. This function's results are cached.
         """
-    def _get_citation_patterns(self, citation: str) -> list[re.Pattern[str]]:
-        """Get compiled regex patterns for a citation (cached)."""
         citation_pattern = re.escape(citation).replace(r"\ ", r"\s+")
         patterns = [
             re.compile(citation_pattern, re.IGNORECASE),
@@ -299,24 +296,15 @@ class TreatmentClassifier:
     def extract_signals(
         self, text: str, citation: str, opinion_type: str = "majority"
     ) -> list[TreatmentSignal]:
-        """
-        Extracts treatment signals for a specific citation from the provided text.
-        
-        Parameters:
-            text (str): Text to search for mentions of the citation.
-            citation (str): Citation string to locate and analyze within the text.
-            opinion_type (str): Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
-        
         """Extract treatment signals from text mentioning the citation.
 
         Args:
-            text: Text to analyze
-            citation: The citation being analyzed
-            opinion_type: Type of opinion (majority, concurrence, dissent)
-            opinion_type: Type of opinion (majority, dissent, etc.)
+            text (str): Text to search for mentions of the citation.
+            citation (str): Citation string to locate and analyze within the text.
+            opinion_type (str): Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
 
         Returns:
-            signals (list[TreatmentSignal]): List of TreatmentSignal objects found; each includes the normalized signal name, inferred treatment type, position, a context excerpt, and the supplied `opinion_type`.
+            list[TreatmentSignal]: List of TreatmentSignal objects found; each includes the normalized signal name, inferred treatment type, position, a context excerpt, and the supplied `opinion_type`.
         """
         signals: list[TreatmentSignal] = []
         contexts = self._extract_citation_contexts(text, citation)
@@ -520,13 +508,13 @@ class TreatmentClassifier:
     ) -> AggregatedTreatment:
         """
         Combine multiple TreatmentAnalysis objects into a single AggregatedTreatment summarizing counts, overall context, confidence, and good-law determination.
-        
+
         Aggregates per-case treatment classifications and per-opinion breakdowns, identifies critical negative treatments (majority/lead negative opinions with high confidence) that make the target citation not good law, and computes an overall confidence score and human-readable summary.
-        
+
         Parameters:
             treatments (list[TreatmentAnalysis]): Analyses of individual citing cases to aggregate.
             target_citation (str): The citation being summarized.
-        
+
         Returns:
             AggregatedTreatment: Summary for the target citation including is_good_law, confidence, counts by treatment type, lists of positive and negative TreatmentAnalysis, a textual summary, overall treatment context, and treatment-by-opinion-type breakdown.
         """
@@ -644,13 +632,13 @@ class TreatmentClassifier:
     ) -> tuple[TreatmentType, float]:
         """
         Determine the overall treatment type and a confidence score from a list of extracted treatment signals.
-        
+
         Given extracted TreatmentSignal objects, the function chooses the strongest negative signal (if any) to classify the treatment as NEGATIVE, otherwise the strongest positive signal (if any) to classify as POSITIVE. If no signals are present, it returns NEUTRAL with a default confidence.
-        
+
         Parameters:
             signals (list[TreatmentSignal]): Extracted signals to aggregate.
             court_weight (float): Multiplier (typically 0.0–1.0+) applied to the selected signal's weight to adjust confidence based on the citing court's importance.
-        
+
         Returns:
             tuple[TreatmentType, float]: A pair of the aggregated TreatmentType and a confidence score between 0 and 1 (default 0.5 when neutral).
         """
@@ -679,18 +667,11 @@ class TreatmentClassifier:
         return TreatmentType.NEUTRAL, 0.5
 
     def _get_signal_weight(self, signal: str, treatment_type: TreatmentType) -> float:
-        """
-        Retrieve the predefined weight for a normalized treatment signal.
-        
-        Parameters:
-            signal (str): Normalized signal name.
-            treatment_type (TreatmentType): TreatmentType enum indicating positive or negative signal.
-        
-        """Get the weight for a signal.
+        """Retrieve the predefined weight for a normalized treatment signal.
 
         Args:
-            signal: Signal text
-            treatment_type: Type of treatment
+            signal (str): Normalized signal name.
+            treatment_type (TreatmentType): TreatmentType enum indicating positive or negative signal.
 
         Returns:
             float: Weight between 0 and 1 for the signal; returns 0.5 if the signal is not found.

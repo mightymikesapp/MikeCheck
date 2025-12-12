@@ -27,7 +27,7 @@ replicas:
 images:
   - name: ghcr.io/mightymikesapp/legal-research-mcp
     # Pin to an immutable tag or digest emitted by CI/CD to ensure reproducible rollouts
-    newTag: "0.1.0"
+    newDigest: sha256:2f6b4f1c7d5f1d1d56b8a8a0193e32ed9f2a1d4a5b1c9f3e4e6f7a8b9c0d1e2
     # Uncomment to always pull the latest image
     # newPullPolicy: Always
 

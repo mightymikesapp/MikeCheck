@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize classifier
 classifier = TreatmentClassifier()
-_classification_executor = ProcessPoolExecutor(max_workers=5)
+_classification_executor = ProcessPoolExecutor(max_workers=settings.treatment_classifier_workers)
 
 
 def _coerce_failed_requests(raw_value: Any) -> list[dict[str, object]]:

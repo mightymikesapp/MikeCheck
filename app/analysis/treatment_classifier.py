@@ -203,20 +203,6 @@ class TreatmentClassifier:
         """Check if a signal at the given position is negated."""
         start = max(0, position - window)
         preceding = text[start:position].lower()
-
-        negation_patterns = [
-            r"\bnot\s+$",
-            r"\b(?:did|does|do|will|would|could|can)\s+not\s+$",
-            r"\b(?:did|does|do|will|would|could|can)n't\s+$",
-            r"\bdeclined\s+to\s+$",
-            r"\brefused\s+to\s+$",
-        ]
-
-        for pattern in negation_patterns:
-            if re.search(pattern, preceding):
-                return True
-
-        return False
         return bool(self.negation_pattern.search(preceding))
 
     def _get_court_weight(self, court_id: str | None) -> float:
@@ -245,14 +231,6 @@ class TreatmentClassifier:
             return "concurrence"
         return "majority"  # lead, combined, per_curiam, etc.
 
-    def extract_signals(
-        self, text: str, citation: str, opinion_type: str = "majority"
-    ) -> list[TreatmentSignal]:
-        """Extract treatment signals from text mentioning the citation."""
-            return 0.6  # District courts
-
-        return 0.7  # State/other courts default
-
     @functools.lru_cache(maxsize=128)
     def _get_citation_patterns(self, citation: str) -> list[re.Pattern]:
         """Get compiled regex patterns for a citation (cached)."""
@@ -270,12 +248,15 @@ class TreatmentClassifier:
             )
         return patterns
 
-    def extract_signals(self, text: str, citation: str) -> list[TreatmentSignal]:
+    def extract_signals(
+        self, text: str, citation: str, opinion_type: str = "majority"
+    ) -> list[TreatmentSignal]:
         """Extract treatment signals from text mentioning the citation.
 
         Args:
             text: Text to analyze
             citation: The citation being analyzed
+            opinion_type: The type of opinion (majority, dissent, etc.)
 
         Returns:
             List of treatment signals found
@@ -284,35 +265,6 @@ class TreatmentClassifier:
         contexts = self._extract_citation_contexts(text, citation)
 
         for context, position in contexts:
-            # Check for negative signals
-            for pattern, (signal, weight) in self.negative_patterns.items():
-                for match in pattern.finditer(context):
-                    if self._is_negated(context, match.start()):
-                        continue
-                    signals.append(
-                        TreatmentSignal(
-                            signal=signal,
-                            treatment_type=TreatmentType.NEGATIVE,
-                            position=position,
-                            context=context[:200],
-                            opinion_type=opinion_type,
-                        )
-                    )
-
-            # Check for positive signals
-            for pattern, (signal, weight) in self.positive_patterns.items():
-                for match in pattern.finditer(context):
-                    if self._is_negated(context, match.start()):
-                        continue
-                    signals.append(
-                        TreatmentSignal(
-                            signal=signal,
-                            treatment_type=TreatmentType.POSITIVE,
-                            position=position,
-                            context=context[:200],
-                            opinion_type=opinion_type,
-                        )
-                    )
             # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
             for match in self.combined_signal_pattern.finditer(context):
                 group_name = match.lastgroup
@@ -331,6 +283,7 @@ class TreatmentClassifier:
                         treatment_type=treatment_type,
                         position=position,
                         context=context[:200],  # First 200 chars
+                        opinion_type=opinion_type,
                     )
                 )
 
@@ -509,7 +462,7 @@ class TreatmentClassifier:
             for t in negative_treatments
         )
 
-        is_good_law = not (strong_majority_negative or len(critical_negative_cases) > 1)
+        is_good_law = not (strong_majority_negative or len(critical_negative_cases) > 0)
 
         # Calculate overall confidence
         confidence = 0.7
@@ -625,13 +578,6 @@ class TreatmentClassifier:
         return TreatmentType.NEUTRAL, 0.5
 
     def _get_signal_weight(self, signal: str, treatment_type: TreatmentType) -> float:
-        signals_dict = (
-            NEGATIVE_SIGNALS if treatment_type == TreatmentType.NEGATIVE else POSITIVE_SIGNALS
-        )
-        for pattern_text, (sig, weight) in signals_dict.items():
-            if sig == signal:
-                return weight
-        return 0.5
         """Get the weight for a signal.
 
         Args:

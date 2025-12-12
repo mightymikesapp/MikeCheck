@@ -85,7 +85,7 @@ curl -H "Authorization: Bearer <YOUR_API_KEY>" \
 Alternative header-based authentication:
 
 ```bash
-curl -H "X-API-Key: API_KEY_EXAMPLE_DEV" \
+curl -H "X-API-Key: <YOUR_API_KEY>" \
   https://api.example.com/herding/analyze \
   -d '{"citation": "410 U.S. 113"}'
 ```

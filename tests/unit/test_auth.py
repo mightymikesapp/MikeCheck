@@ -8,17 +8,9 @@ from app.config import settings
 
 @pytest.fixture(autouse=True)
 def reset_api_key_manager() -> None:
-    """Reset API key manager and settings after each test."""
-    original_settings = {
-        "enable_api_key_auth": settings.enable_api_key_auth,
-        "api_keys": settings.api_keys,
-        "allow_api_key_query_param": settings.allow_api_key_query_param,
-    }
+    """Reset API key manager after each test to reload settings."""
     auth._api_key_manager = None
     yield
-    settings.enable_api_key_auth = original_settings["enable_api_key_auth"]
-    settings.api_keys = original_settings["api_keys"]
-    settings.allow_api_key_query_param = original_settings["allow_api_key_query_param"]
     auth._api_key_manager = None
 
 
@@ -45,11 +37,12 @@ def make_request(query: str | None = None, headers: dict[str, str] | None = None
 
 
 @pytest.mark.asyncio
-async def test_verify_api_key_allows_query_when_enabled() -> None:
-    settings.enable_api_key_auth = True
-    settings.allow_api_key_query_param = True
-    settings.api_keys = "token123"
-    auth._api_key_manager = None
+async def test_verify_api_key_allows_query_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "enable_api_key_auth", True)
+    monkeypatch.setattr(settings, "allow_api_key_query_param", True)
+    monkeypatch.setattr(settings, "api_keys", "token123")
 
     request = make_request(query="api_key=token123")
 
@@ -59,11 +52,12 @@ async def test_verify_api_key_allows_query_when_enabled() -> None:
 
 
 @pytest.mark.asyncio
-async def test_verify_api_key_ignores_query_when_disabled(caplog: pytest.LogCaptureFixture) -> None:
-    settings.enable_api_key_auth = True
-    settings.allow_api_key_query_param = False
-    settings.api_keys = "token123"
-    auth._api_key_manager = None
+async def test_verify_api_key_ignores_query_when_disabled(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(settings, "enable_api_key_auth", True)
+    monkeypatch.setattr(settings, "allow_api_key_query_param", False)
+    monkeypatch.setattr(settings, "api_keys", "token123")
 
     request = make_request(query="api_key=token123")
 

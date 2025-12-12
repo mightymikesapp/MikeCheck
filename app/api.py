@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
 from app.tools.research import issue_map_impl, run_research_pipeline_impl
@@ -83,10 +84,27 @@ async def home(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
 @app.post("/analyze/upload")
 async def upload_document(request: Request, file: UploadFile = File(...)) -> Any:
     """Handle document upload and parsing."""
     try:
+        # Check Content-Length header first (approximate)
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_UPLOAD_SIZE * 1.1:  # Allow 10% overhead for multipart
+             raise HTTPException(status_code=413, detail="File too large (max 10MB)")
+
+        # Check actual file size
+        # UploadFile.seek does not support whence, so we use the underlying file
+        await run_in_threadpool(file.file.seek, 0, 2)
+        size = await run_in_threadpool(file.file.tell)
+        await run_in_threadpool(file.file.seek, 0)
+
+        if size > MAX_UPLOAD_SIZE:
+             raise HTTPException(status_code=413, detail="File too large (max 10MB)")
+
         content = await file.read()
         filename = (file.filename or "").lower()
 
@@ -116,6 +134,8 @@ async def upload_document(request: Request, file: UploadFile = File(...)) -> Any
             "detected_citations": citations,
             "summary": f"Successfully extracted {len(citations)} citations from document.",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         if request.headers.get("hx-request"):

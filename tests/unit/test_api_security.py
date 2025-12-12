@@ -45,3 +45,14 @@ def test_cors_allows_localhost():
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == origin
     assert response.headers["access-control-allow-credentials"] == "true"
+
+
+@pytest.mark.unit
+def test_upload_too_large():
+    # 11MB of data (larger than 10MB limit)
+    content = b"a" * (11 * 1024 * 1024)
+    files = {"file": ("large.txt", content, "text/plain")}
+    # We expect 413 Payload Too Large
+    # Note: TestClient might just pass it through, so we need to ensure the app rejects it.
+    response = client.post("/analyze/upload", files=files)
+    assert response.status_code == 413

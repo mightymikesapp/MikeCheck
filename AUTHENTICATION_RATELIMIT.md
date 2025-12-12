@@ -287,7 +287,7 @@ Each identifier has its own quota.
 ```bash
 docker run \
   -e ENABLE_API_KEY_AUTH=true \
-  -e API_KEYS="API_KEY_EXAMPLE_DEV,API_KEY_EXAMPLE_PROD" \
+  -e API_KEYS="<YOUR_API_KEY_1>,<YOUR_API_KEY_2>" \
   -e ENABLE_RATE_LIMITING=true \
   -e RATE_LIMIT_DEFAULT=100/minute \
   -e RATE_LIMIT_TREATMENT_ANALYSIS=10/minute \

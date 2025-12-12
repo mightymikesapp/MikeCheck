@@ -57,9 +57,9 @@ RUN useradd -m -u 1000 -s /sbin/nologin appuser && \
 USER appuser
 
 # Health check for container orchestration
-# Checks both FastAPI and MCP server availability
+# Checks both FastAPI and MCP server availability using curl (available in runtime image)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=5)" || exit 1
+    CMD curl -fS http://localhost:8000/health || exit 1
 
 # Expose default port
 EXPOSE 8000

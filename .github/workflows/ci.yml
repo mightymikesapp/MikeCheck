@@ -174,12 +174,13 @@ jobs:
         run: uv sync --dev
 
       - name: Run integration tests
-        if: env.COURTLISTENER_API_KEY != ''
+        # Secrets are not available to workflows triggered from fork PRs.
+        if: ${{ secrets.COURTLISTENER_API_KEY != '' }}
         env:
           COURTLISTENER_API_KEY: ${{ secrets.COURTLISTENER_API_KEY }}
         run: uv run pytest -m integration -v
-        continue-on-error: true
-
+        # Consider making this blocking when the secret is present.
+        continue-on-error: false
   # Final status check
   ci-status:
     name: CI Status

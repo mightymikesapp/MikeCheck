@@ -346,7 +346,7 @@ curl https://api.example.com/health
 ```python
 import requests
 
-API_KEY = "API_KEY_EXAMPLE_DEV"
+API_KEY = "<YOUR_API_KEY>"
 BASE_URL = "https://api.example.com"
 
 # Method 1: Authorization header

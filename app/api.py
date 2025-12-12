@@ -9,19 +9,20 @@ import signal
 import sys
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Awaitable, Callable, AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, Awaitable, Callable, List, Optional
 
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from app.auth import verify_api_key
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
 from app.config import settings
-from app.metrics import initialize_metrics, get_metrics_response, record_api_request, record_api_error
+from app.metrics import get_metrics_response, initialize_metrics, record_api_error, record_api_request
 from app.tools.research import issue_map_impl, run_research_pipeline_impl
 from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
@@ -226,6 +227,16 @@ class ResearchRequest(BaseModel):
     key_questions: Optional[List[str]] = None
 
 
+def _log_anonymous_access(api_key: Optional[str], endpoint: str) -> None:
+    """Log when authentication is disabled and requests proceed anonymously."""
+
+    if api_key is None:
+        logger.debug(
+            "Authentication disabled; proceeding without API key",
+            extra={"event": "auth_disabled", "endpoint": endpoint},
+        )
+
+
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     """Health check endpoint."""
@@ -250,8 +261,13 @@ async def home(request: Request) -> HTMLResponse:
 
 
 @app.post("/analyze/upload")
-async def upload_document(request: Request, file: UploadFile = File(...)) -> Any:
+async def upload_document(
+    request: Request,
+    file: UploadFile = File(...),
+    api_key: Optional[str] = Depends(verify_api_key),
+) -> Any:
     """Handle document upload and parsing."""
+    _log_anonymous_access(api_key, "/analyze/upload")
     try:
         content = await file.read()
         filename = (file.filename or "").lower()
@@ -292,8 +308,11 @@ async def upload_document(request: Request, file: UploadFile = File(...)) -> Any
 
 
 @app.post("/herding/analyze")
-async def analyze_citation(request: AnalysisRequest) -> dict[str, Any]:
+async def analyze_citation(
+    request: AnalysisRequest, api_key: Optional[str] = Depends(verify_api_key)
+) -> dict[str, Any]:
     """Run treatment analysis on a citation (JSON API)."""
+    _log_anonymous_access(api_key, "/herding/analyze")
     try:
         result = await check_case_validity_impl(request.citation)
         return {
@@ -308,9 +327,13 @@ async def analyze_citation(request: AnalysisRequest) -> dict[str, Any]:
 
 @app.post("/herding/analyze_html")
 async def analyze_citation_html(
-    request: Request, citation: str = Form(...), index: int = Form(0)
+    request: Request,
+    citation: str = Form(...),
+    index: int = Form(0),
+    api_key: Optional[str] = Depends(verify_api_key),
 ) -> Any:
     """Run treatment analysis on a citation (HTMX)."""
+    _log_anonymous_access(api_key, "/herding/analyze_html")
     try:
         result = await check_case_validity_impl(citation)
         return templates.TemplateResponse(
@@ -326,8 +349,11 @@ async def analyze_citation_html(
 
 
 @app.post("/search/similar")
-async def find_similar(request: SearchRequest) -> dict[str, Any]:
+async def find_similar(
+    request: SearchRequest, api_key: Optional[str] = Depends(verify_api_key)
+) -> dict[str, Any]:
     """Find similar cases using semantic search."""
+    _log_anonymous_access(api_key, "/search/similar")
     try:
         result = await semantic_search_impl(request.query, request.limit)
         return result
@@ -337,8 +363,11 @@ async def find_similar(request: SearchRequest) -> dict[str, Any]:
 
 
 @app.post("/research/analyze")
-async def run_research(request: ResearchRequest) -> dict[str, Any]:
+async def run_research(
+    request: ResearchRequest, api_key: Optional[str] = Depends(verify_api_key)
+) -> dict[str, Any]:
     """Run comprehensive research pipeline."""
+    _log_anonymous_access(api_key, "/research/analyze")
     try:
         result = await run_research_pipeline_impl(request.citations, request.key_questions)
         return result
@@ -349,9 +378,13 @@ async def run_research(request: ResearchRequest) -> dict[str, Any]:
 
 @app.post("/research/issue_map_html")
 async def get_issue_map_html(
-    request: Request, primary_case: str = Form(...), key_questions: Optional[str] = Form(None)
+    request: Request,
+    primary_case: str = Form(...),
+    key_questions: Optional[str] = Form(None),
+    api_key: Optional[str] = Depends(verify_api_key),
 ) -> Any:
     """Generate issue map and return HTML."""
+    _log_anonymous_access(api_key, "/research/issue_map_html")
     try:
         questions_list = [q.strip() for q in key_questions.split("\n")] if key_questions else None
         result = await issue_map_impl(primary_case=primary_case, key_questions=questions_list)
@@ -366,8 +399,13 @@ async def get_issue_map_html(
 
 
 @app.post("/herding/details_html")
-async def analyze_citation_details(request: Request, citation: str = Form(...)) -> Any:
+async def analyze_citation_details(
+    request: Request,
+    citation: str = Form(...),
+    api_key: Optional[str] = Depends(verify_api_key),
+) -> Any:
     """Get detailed treatment analysis for modal."""
+    _log_anonymous_access(api_key, "/herding/details_html")
     try:
         # Re-run or get cached analysis
         result = await check_case_validity_impl(citation)
@@ -383,8 +421,13 @@ async def analyze_citation_details(request: Request, citation: str = Form(...)) 
 
 
 @app.post("/search/similar_html")
-async def find_similar_html(request: Request, query: str = Form(...)) -> Any:
+async def find_similar_html(
+    request: Request,
+    query: str = Form(...),
+    api_key: Optional[str] = Depends(verify_api_key),
+) -> Any:
     """Find similar cases returning HTML."""
+    _log_anonymous_access(api_key, "/search/similar_html")
     try:
         # Use semantic search
         result = await semantic_search_impl(query, limit=5)

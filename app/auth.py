@@ -91,14 +91,14 @@ def get_api_key_manager() -> APIKeyManager:
     return _api_key_manager
 
 
-async def verify_api_key(request: Request) -> str:
+async def verify_api_key(request: Request) -> Optional[str]:
     """Verify API key from request headers or query params.
 
     Args:
         request: FastAPI request object
 
     Returns:
-        The validated API key
+        The validated API key or None when authentication is disabled
 
     Raises:
         HTTPException: If key is invalid or missing
@@ -107,7 +107,7 @@ async def verify_api_key(request: Request) -> str:
 
     # Skip authentication if disabled
     if not settings.enable_api_key_auth:
-        return "no-auth"
+        return None
 
     # Try to get API key from multiple sources
     api_key = None
@@ -121,13 +121,19 @@ async def verify_api_key(request: Request) -> str:
     if not api_key:
         api_key = request.headers.get("X-API-Key", "")
 
-    # 3. Check query parameter (less secure, but useful for development)
+    # 3. Check query parameter (optional and less secure)
     if not api_key and "api_key" in request.query_params:
-        api_key = request.query_params.get("api_key", "")
-        logger.warning(
-            "API key provided via query parameter (less secure than headers)",
-            extra={"event": "api_key_query_param"},
-        )
+        if settings.allow_api_key_query_param:
+            api_key = request.query_params.get("api_key", "")
+            logger.warning(
+                "API key provided via query parameter (less secure than headers)",
+                extra={"event": "api_key_query_param"},
+            )
+        else:
+            logger.info(
+                "API key query parameter ignored because allow_api_key_query_param is disabled",
+                extra={"event": "api_key_query_param_ignored"},
+            )
 
     # Validate key
     if not api_key:

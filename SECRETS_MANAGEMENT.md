@@ -186,7 +186,7 @@ Uses asymmetric encryption - safe to commit to git!
 
 ```bash
 # Install Sealed Secrets (one-time)
-kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.33.1/controller.yaml
+kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/latest/download/controller.yaml
 
 # Create sealed secret
 echo -n 'your-api-key' | kubectl create secret generic legal-research-secrets \

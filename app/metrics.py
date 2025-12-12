@@ -231,7 +231,7 @@ def record_api_request(
         status_code: HTTP status code
         duration_seconds: Request duration
     """
-    if not PROMETHEUS_AVAILABLE or api_requests_total is None:
+    if not PROMETHEUS_AVAILABLE or api_requests_total is None or api_request_duration_seconds is None:
         return
 
     api_requests_total.labels(

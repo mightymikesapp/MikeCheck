@@ -329,7 +329,7 @@ curl -X POST \
 
 ```bash
 curl -X POST \
-  -H "X-API-Key: API_KEY_EXAMPLE_DEV" \
+  -H "X-API-Key: <YOUR_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"citation": "410 U.S. 113"}' \
   https://api.example.com/herding/analyze

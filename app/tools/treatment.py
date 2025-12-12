@@ -369,7 +369,7 @@ async def get_citing_cases_impl(
         async def classify_with_limit(case: CourtListenerCase) -> TreatmentAnalysis:
             """Classify case with concurrency limit."""
             async with semaphore:
-                return classifier.classify_treatment(case, citation)
+                return await asyncio.to_thread(classifier.classify_treatment, case, citation)
 
         analyses: list[TreatmentAnalysis | Exception] = await asyncio.gather(
             *[classify_with_limit(case) for case in citing_cases],

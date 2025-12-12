@@ -72,6 +72,7 @@ class TreatmentResult(TypedDict, total=False):
     incomplete_data: bool
     recommendation: str
     error: NotRequired[str]
+    job_id: NotRequired[str | None]
     treatment_context: NotRequired[str]  # e.g. "majority_negative", "dissent_negative_only"
     treatment_by_opinion_type: NotRequired[dict[str, TreatmentStats]]
 
@@ -111,6 +112,7 @@ class QuoteVerificationResult(TypedDict, total=False):
     grounding: QuoteGrounding
     error: str
     error_code: str
+    job_id: NotRequired[str | None]
     pinpoint_provided: str
     pinpoint_note: str
 
@@ -160,3 +162,4 @@ class CitationNetworkResult(TypedDict, total=False):
     failed_requests: NotRequired[list[dict[str, object]]]
     incomplete_data: NotRequired[bool]
     error: NotRequired[str]
+    job_id: NotRequired[str | None]

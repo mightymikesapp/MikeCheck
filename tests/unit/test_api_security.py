@@ -119,7 +119,7 @@ def test_upload_with_content_length_header():
     # This tests the optimization that checks header before reading entire file
     content = b"small content"
     files = {"file": ("test.txt", content, "text/plain")}
-    
+
     # Create a request with artificially large Content-Length header
     # Note: TestClient may not allow us to override Content-Length easily,
     # but we verify the logic exists in the code
@@ -148,13 +148,13 @@ def test_upload_boundary_conditions():
     files = {"file": ("tiny.txt", content, "text/plain")}
     response = client.post("/analyze/upload", files=files)
     assert response.status_code != 413
-    
+
     # Test 1MB
     content = b"a" * (1 * 1024 * 1024)
     files = {"file": ("1mb.txt", content, "text/plain")}
     response = client.post("/analyze/upload", files=files)
     assert response.status_code != 413
-    
+
     # Test 5MB
     content = b"a" * (5 * 1024 * 1024)
     files = {"file": ("5mb.txt", content, "text/plain")}

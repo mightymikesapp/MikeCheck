@@ -7,7 +7,6 @@ This module provides:
 - Middleware for automatic HTTP metrics collection
 """
 
-from typing import Any
 
 try:
     from prometheus_client import (
@@ -15,8 +14,8 @@ try:
         REGISTRY,
         CollectorRegistry,
         Counter,
-        Histogram,
         Gauge,
+        Histogram,
         generate_latest,
     )
     PROMETHEUS_AVAILABLE = True

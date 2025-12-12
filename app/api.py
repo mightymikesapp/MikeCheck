@@ -20,10 +20,15 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from app.auth import verify_api_key
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
+from app.auth import verify_api_key
 from app.config import settings
-from app.metrics import get_metrics_response, initialize_metrics, record_api_error, record_api_request
+from app.metrics import (
+    get_metrics_response,
+    initialize_metrics,
+    record_api_error,
+    record_api_request,
+)
 from app.tools.research import issue_map_impl, run_research_pipeline_impl
 from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
@@ -84,9 +89,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         yield
     except Exception as e:
-        logger.error(
-            "Error during application lifecycle",
-            extra={"event": "error", "error": str(e)},
         logger.exception(
             "Error during application lifecycle",
             exc_info=True,

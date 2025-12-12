@@ -95,7 +95,7 @@ curl -H "X-API-Key: <YOUR_API_KEY>" \
 Least secure - useful for testing in browser:
 
 ```bash
-curl "https://api.example.com/herding/analyze?api_key=API_KEY_EXAMPLE_DEV" \
+curl "https://api.example.com/herding/analyze?api_key=<YOUR_API_KEY>" \
   -d '{"citation": "410 U.S. 113"}'
 ```
 

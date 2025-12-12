@@ -34,7 +34,7 @@ jobs:
       - name: Run integration tests
         env:
           COURTLISTENER_API_KEY: ${{ secrets.COURTLISTENER_API_KEY }}
-        run: uv run pytest -m integration -v --tb=short
+        run: uv run pytest -m integration -v --tb=short --junitxml=test-results.xml
 
       - name: Upload test results
         if: always()

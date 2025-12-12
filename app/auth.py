@@ -91,14 +91,14 @@ def get_api_key_manager() -> APIKeyManager:
     return _api_key_manager
 
 
-async def verify_api_key(request: Request) -> str:
+async def verify_api_key(request: Request) -> Optional[str]:
     """Verify API key from request headers or query params.
 
     Args:
         request: FastAPI request object
 
     Returns:
-        The validated API key
+        The validated API key or None when authentication is disabled
 
     Raises:
         HTTPException: If key is invalid or missing
@@ -107,7 +107,7 @@ async def verify_api_key(request: Request) -> str:
 
     # Skip authentication if disabled
     if not settings.enable_api_key_auth:
-        return "no-auth"
+        return None
 
     # Try to get API key from multiple sources
     api_key = None

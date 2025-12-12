@@ -26,7 +26,8 @@ replicas:
 # Image updates (convenient for CI/CD)
 images:
   - name: ghcr.io/mightymikesapp/legal-research-mcp
-    newTag: latest
+    # Pin to an immutable tag or digest emitted by CI/CD to ensure reproducible rollouts
+    newTag: "0.1.0"
     # Uncomment to always pull the latest image
     # newPullPolicy: Always
 

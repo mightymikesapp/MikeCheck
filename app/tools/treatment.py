@@ -56,6 +56,28 @@ async def shutdown_classification_executor() -> None:
         _classification_executor = None
 
 
+async def _classify_parallel(
+    cases: list[CourtListenerCase],
+    citation: str,
+    concurrency: int = 5,
+) -> list[Union[TreatmentAnalysis, Exception]]:
+    """Classify cases using a threadpool while limiting concurrency."""
+
+    loop = asyncio.get_running_loop()
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def classify(case: CourtListenerCase) -> TreatmentAnalysis:
+        async with semaphore:
+            return await loop.run_in_executor(
+                None, classifier.classify_treatment, case, citation
+            )
+
+    return await asyncio.gather(
+        *(classify(case) for case in cases),
+        return_exceptions=True,
+    )
+
+
 def _coerce_failed_requests(raw_value: Any) -> list[dict[str, object]]:
     """Ensure failed request entries are dictionaries."""
     if not isinstance(raw_value, list):
@@ -173,6 +195,7 @@ async def check_case_validity_impl(
         )
 
         # Parallelize initial analysis (MEDIUM Bottleneck #4 fix)
+        analyses = await _classify_parallel(citing_cases, citation)
         # Using Semaphore(5) to limit concurrent analysis from start
         semaphore = asyncio.Semaphore(5)
 
@@ -363,6 +386,7 @@ async def get_citing_cases_impl(
         citing_cases = _coerce_cases(raw_results)
 
         # Parallelize classification (HIGH Bottleneck #3 fix)
+        analyses = await _classify_parallel(citing_cases, citation)
         # Using Semaphore(5) to limit concurrent analysis
         semaphore = asyncio.Semaphore(5)
 
@@ -436,6 +460,7 @@ async def treatment_timeline_impl(
     citing_cases = _coerce_cases(raw_results)
 
     # 3. Analyze all cases in parallel (CRITICAL Bottleneck #2 fix)
+    analyses = await _classify_parallel(citing_cases, citation)
     # Using Semaphore(5) to limit concurrent analysis while respecting API rate limits
     semaphore = asyncio.Semaphore(5)
 

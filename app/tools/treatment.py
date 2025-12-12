@@ -314,7 +314,10 @@ async def get_citing_cases_impl(
         async def classify_with_limit(case: CourtListenerCase) -> Any:
             """Classify case with concurrency limit."""
             async with semaphore:
-                return classifier.classify_treatment(case, citation)
+                loop = asyncio.get_running_loop()
+                return await loop.run_in_executor(
+                    None, classifier.classify_treatment, case, citation
+                )
 
         analyses = await asyncio.gather(
             *[classify_with_limit(case) for case in citing_cases],

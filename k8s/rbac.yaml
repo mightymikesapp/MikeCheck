@@ -30,7 +30,7 @@ rules:
     verbs: ["get", "list", "watch"]
 
 ---
-# RoleBinding to grant the role to the service account
+# RoleBinding to grant the role to the Prometheus service account
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -44,5 +44,5 @@ roleRef:
   name: legal-research-metrics-reader
 subjects:
   - kind: ServiceAccount
-    name: legal-research
-    namespace: legal-research
+    name: prometheus-k8s
+    namespace: monitoring

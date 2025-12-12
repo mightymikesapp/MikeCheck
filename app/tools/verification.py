@@ -177,9 +177,7 @@ async def verify_quote_impl(
 
         # Step 2: Get full text of the opinion
         # Extract opinion IDs
-        opinion_ids = [
-            op.get("id") for op in target_case.get("opinions", []) if op.get("id")
-        ]
+        opinion_ids = [op.get("id") for op in target_case.get("opinions", []) if op.get("id")]
 
         if not opinion_ids:
             return {
@@ -310,9 +308,7 @@ async def verify_quote_impl(
                     and isinstance(target_span.get("start"), int)
                     and isinstance(target_span.get("end"), int)
                 ):
-                    in_range = (
-                        target_span["start"] <= absolute_start <= target_span["end"]
-                    )
+                    in_range = target_span["start"] <= absolute_start <= target_span["end"]
                     grounding["alignment"]["pinpoint_in_range"] = in_range
                     if not in_range:
                         mismatch_reasons.append(
@@ -539,9 +535,7 @@ async def verify_quote(
             }
         }
     """
-    return await verify_quote_impl(
-        quote, citation, pinpoint, request_id=request_id, job_id=job_id
-    )
+    return await verify_quote_impl(quote, citation, pinpoint, request_id=request_id, job_id=job_id)
 
 
 @verification_server.tool()
@@ -583,6 +577,4 @@ async def batch_verify_quotes(
             "results": [...]
         }
     """
-    return await batch_verify_quotes_impl(
-        quotes, request_id=request_id, job_id=job_id
-    )
+    return await batch_verify_quotes_impl(quotes, request_id=request_id, job_id=job_id)

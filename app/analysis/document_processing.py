@@ -9,11 +9,41 @@ from pypdf import PdfReader
 logger = logging.getLogger(__name__)
 
 EXCLUDED_TERMS = {
-    "january", "february", "march", "april", "may", "june",
-    "july", "august", "september", "october", "november", "december",
-    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
-    "section", "sec", "id", "at", "and", "or", "the", "see", "cf"
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "sept",
+    "oct",
+    "nov",
+    "dec",
+    "section",
+    "sec",
+    "id",
+    "at",
+    "and",
+    "or",
+    "the",
+    "see",
+    "cf",
 }
+
 
 def extract_text_from_pdf(content: bytes) -> str:
     """Extract text from PDF content."""
@@ -26,6 +56,7 @@ def extract_text_from_pdf(content: bytes) -> str:
     except Exception as e:
         logger.error(f"PDF extraction failed: {e}")
         return ""
+
 
 def extract_citations(text: str) -> list[str]:
     """Extract legal citations from text using regex."""

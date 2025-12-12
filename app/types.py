@@ -48,6 +48,7 @@ class TreatmentWarning(TypedDict, total=False):
 
 class TreatmentStats(TypedDict, total=False):
     """Counts of treatment types."""
+
     positive: int
     negative: int
     neutral: int

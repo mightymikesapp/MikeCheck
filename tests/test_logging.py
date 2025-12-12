@@ -293,6 +293,7 @@ class TestToolLoggingDecorator:
         logger.addHandler(handler)
 
         try:
+
             @tool_logging("test_tool")
             def test_func(arg1: str, arg2: int = 10):
                 return f"{arg1}-{arg2}"
@@ -337,6 +338,7 @@ class TestToolLoggingDecorator:
         logger.addHandler(handler)
 
         try:
+
             @tool_logging("test_tool")
             async def test_func(arg1: str) -> str:
                 await asyncio.sleep(0.01)
@@ -366,6 +368,7 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_sets_correlation_id(self):
         """Test that tool_logging decorator sets a correlation ID."""
+
         @tool_logging("test_tool")
         def test_func():
             # Get the correlation ID from context
@@ -377,6 +380,7 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_sets_metadata(self):
         """Test that tool_logging decorator sets request metadata."""
+
         @tool_logging("test_tool")
         def test_func():
             # Get the metadata from context
@@ -398,6 +402,7 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_with_citation_argument(self):
         """Test that tool_logging extracts citation from function arguments."""
+
         @tool_logging("test_tool")
         def test_func(citation: str):
             return request_metadata_ctx.get()
@@ -407,6 +412,7 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_with_citation_id_argument(self):
         """Test that tool_logging extracts citation_id from function arguments."""
+
         @tool_logging("test_tool")
         def test_func(citation_id: str):
             return request_metadata_ctx.get()
@@ -416,6 +422,7 @@ class TestToolLoggingDecorator:
 
     def test_tool_logging_with_citation_text_argument(self):
         """Test that tool_logging extracts citation_text from function arguments."""
+
         @tool_logging("test_tool")
         def test_func(citation_text: str):
             return request_metadata_ctx.get()
@@ -454,14 +461,19 @@ class TestToolLoggingDecorator:
                 r for r in log_records if hasattr(r, "elapsed_ms") and r.elapsed_ms is not None
             ]
             # At least one record should have elapsed time
-            assert len(elapsed_records) >= 1, f"Expected elapsed_ms field in log records, got {[(r.getMessage(), getattr(r, 'elapsed_ms', None)) for r in log_records]}"
+            assert len(elapsed_records) >= 1, (
+                f"Expected elapsed_ms field in log records, got {[(r.getMessage(), getattr(r, 'elapsed_ms', None)) for r in log_records]}"
+            )
             # The elapsed time should be at least 20ms
-            assert any(r.elapsed_ms >= 20 for r in elapsed_records), f"Expected elapsed_ms >= 20, got {[r.elapsed_ms for r in elapsed_records]}"
+            assert any(r.elapsed_ms >= 20 for r in elapsed_records), (
+                f"Expected elapsed_ms >= 20, got {[r.elapsed_ms for r in elapsed_records]}"
+            )
         finally:
             logger.removeHandler(handler)
 
     def test_tool_logging_cleans_up_context(self):
         """Test that tool_logging decorator cleans up context after execution."""
+
         @tool_logging("test_tool")
         def test_func():
             pass
@@ -671,7 +683,11 @@ class TestLogOperationContextManager:
 
         try:
             with log_operation(
-                logger, tool_name="test_tool", request_id="req-1", query_params=None, event="test_event"
+                logger,
+                tool_name="test_tool",
+                request_id="req-1",
+                query_params=None,
+                event="test_event",
             ):
                 pass
 
@@ -699,7 +715,11 @@ class TestLogOperationContextManager:
         try:
             with pytest.raises(ValueError):
                 with log_operation(
-                    logger, tool_name="test_tool", request_id="req-1", query_params=None, event="test_event"
+                    logger,
+                    tool_name="test_tool",
+                    request_id="req-1",
+                    query_params=None,
+                    event="test_event",
                 ):
                     raise ValueError("Test error")
 
@@ -726,7 +746,11 @@ class TestLogOperationContextManager:
 
         try:
             with log_operation(
-                logger, tool_name="test_tool", request_id="req-1", query_params=None, event="test_event"
+                logger,
+                tool_name="test_tool",
+                request_id="req-1",
+                query_params=None,
+                event="test_event",
             ):
                 time.sleep(0.01)
 
@@ -817,7 +841,11 @@ class TestLogOperationContextManager:
 
         try:
             with log_operation(
-                logger, tool_name="my_tool", request_id=None, query_params=None, event="operation_event"
+                logger,
+                tool_name="my_tool",
+                request_id=None,
+                query_params=None,
+                event="operation_event",
             ):
                 pass
 
@@ -877,6 +905,7 @@ class TestLoggingIntegration:
         logger.addHandler(handler)
 
         try:
+
             @tool_logging("test_tool")
             def test_func():
                 with log_operation(

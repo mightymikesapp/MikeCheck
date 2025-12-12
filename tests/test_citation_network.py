@@ -20,7 +20,7 @@ def sample_cases():
             "opinions": [{"id": 1}],
             "status": "Precedential",
             "precedentialStatus": "Published",
-            "judge": "Blackmun"
+            "judge": "Blackmun",
         },
         "citing1": {
             "citation": ["505 U.S. 833"],
@@ -28,7 +28,7 @@ def sample_cases():
             "dateFiled": "1992-06-29",
             "court": "scotus",
             "cluster_id": 200,
-            "opinions": [{"id": 2}]
+            "opinions": [{"id": 2}],
         },
         "citing2": {
             "citation": ["597 U.S. 215"],
@@ -36,9 +36,10 @@ def sample_cases():
             "dateFiled": "2022-06-24",
             "court": "scotus",
             "cluster_id": 300,
-            "opinions": [{"id": 3}]
-        }
+            "opinions": [{"id": 3}],
+        },
     }
+
 
 @pytest.fixture
 def sample_treatments():
@@ -49,7 +50,7 @@ def sample_treatments():
             },
             "treatment": "affirmed",
             "confidence": 0.8,
-            "excerpt": "Affirmed in part"
+            "excerpt": "Affirmed in part",
         },
         {
             "citing_case": {
@@ -57,14 +58,16 @@ def sample_treatments():
             },
             "treatment": "overruled",
             "confidence": 0.95,
-            "excerpt": "Overruled"
-        }
+            "excerpt": "Overruled",
+        },
     ]
+
 
 def test_builder_initialization():
     builder = CitationNetworkBuilder(max_depth=3, max_nodes=50)
     assert builder.max_depth == 3
     assert builder.max_nodes == 50
+
 
 def test_build_network(sample_cases, sample_treatments):
     builder = CitationNetworkBuilder()
@@ -94,22 +97,22 @@ def test_build_network(sample_cases, sample_treatments):
     assert edge2.to_citation == "410 U.S. 113"
     assert edge2.treatment == "overruled"
 
+
 def test_build_network_max_nodes_limit(sample_cases):
-    builder = CitationNetworkBuilder(max_nodes=2) # Root + 1 citing
+    builder = CitationNetworkBuilder(max_nodes=2)  # Root + 1 citing
 
     root_case = sample_cases["root"]
     citing_cases = [sample_cases["citing1"], sample_cases["citing2"]]
 
     network = builder.build_network(root_case, citing_cases)
 
-    assert len(network.nodes) == 2 # Root + 1 citing case
+    assert len(network.nodes) == 2  # Root + 1 citing case
+
 
 def test_get_network_statistics(sample_cases, sample_treatments):
     builder = CitationNetworkBuilder()
     network = builder.build_network(
-        sample_cases["root"],
-        [sample_cases["citing1"], sample_cases["citing2"]],
-        sample_treatments
+        sample_cases["root"], [sample_cases["citing1"], sample_cases["citing2"]], sample_treatments
     )
 
     stats = builder.get_network_statistics(network)
@@ -120,12 +123,11 @@ def test_get_network_statistics(sample_cases, sample_treatments):
     assert stats["treatment_distribution"]["overruled"] == 1
     assert stats["root_citation_count"] == 2
 
+
 def test_filter_network(sample_cases, sample_treatments):
     builder = CitationNetworkBuilder()
     network = builder.build_network(
-        sample_cases["root"],
-        [sample_cases["citing1"], sample_cases["citing2"]],
-        sample_treatments
+        sample_cases["root"], [sample_cases["citing1"], sample_cases["citing2"]], sample_treatments
     )
 
     # Filter by treatment
@@ -145,6 +147,7 @@ def test_filter_network(sample_cases, sample_treatments):
     assert len(filtered_date.edges) == 1
     assert filtered_date.edges[0].from_citation == "597 U.S. 215"
 
+
 def test_extract_citation_edge_cases():
     builder = CitationNetworkBuilder()
 
@@ -163,6 +166,7 @@ def test_extract_citation_edge_cases():
 
 # Edge Case Tests for Citation Network
 
+
 def test_circular_citation_handling(sample_cases):
     """Test handling of circular citation patterns."""
     builder = CitationNetworkBuilder()
@@ -176,7 +180,11 @@ def test_circular_citation_handling(sample_cases):
 
     treatments = [
         {"citing_case": {"citation": ["505 U.S. 833"]}, "treatment": "affirmed", "confidence": 0.9},
-        {"citing_case": {"citation": ["597 U.S. 215"]}, "treatment": "overruled", "confidence": 0.95},
+        {
+            "citing_case": {"citation": ["597 U.S. 215"]},
+            "treatment": "overruled",
+            "confidence": 0.95,
+        },
     ]
 
     network = builder.build_network(root_case, citing_cases, treatments)
@@ -306,9 +314,7 @@ def test_filter_network_empty_result(sample_cases, sample_treatments):
     """Test filtering that results in empty network."""
     builder = CitationNetworkBuilder()
     network = builder.build_network(
-        sample_cases["root"],
-        [sample_cases["citing1"], sample_cases["citing2"]],
-        sample_treatments
+        sample_cases["root"], [sample_cases["citing1"], sample_cases["citing2"]], sample_treatments
     )
 
     # Filter for non-existent treatment

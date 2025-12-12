@@ -28,7 +28,7 @@ def client_instance():
         client.cache_manager.get.return_value = None
         yield client
         # Clean up
-        if hasattr(client, 'client'):
+        if hasattr(client, "client"):
             # It's an async client, we can't easily close it in a sync fixture
             # but we can suppress the warning or ignore it.
             pass
@@ -57,8 +57,7 @@ async def test_search_opinions(client_instance):
 
     # Verify cache interaction
     client_instance.cache_manager.aget.assert_called_with(
-        CacheType.SEARCH,
-        {'q': 'test query', 'type': 'o', 'order_by': 'score desc', 'hit': 20}
+        CacheType.SEARCH, {"q": "test query", "type": "o", "order_by": "score desc", "hit": 20}
     )
     client_instance.cache_manager.aset.assert_called()
 
@@ -93,9 +92,7 @@ async def test_get_opinion(client_instance):
     assert result["id"] == 123
 
     # Verify cache
-    client_instance.cache_manager.aget.assert_called_with(
-        CacheType.METADATA, {"opinion_id": 123}
-    )
+    client_instance.cache_manager.aget.assert_called_with(CacheType.METADATA, {"opinion_id": 123})
     client_instance.cache_manager.aset.assert_called()
 
 
@@ -104,14 +101,10 @@ async def test_get_opinion_full_text(client_instance):
     """Test getting full text with fallback fields."""
 
     # Mock get_opinion response
-    mock_opinion = {
-        "id": 123,
-        "plain_text": "Full text content",
-        "html": "<html>...</html>"
-    }
+    mock_opinion = {"id": 123, "plain_text": "Full text content", "html": "<html>...</html>"}
 
     # Mock get_opinion method on the client itself to avoid nested HTTP calls
-    with patch.object(client_instance, 'get_opinion', return_value=mock_opinion):
+    with patch.object(client_instance, "get_opinion", return_value=mock_opinion):
         text = await client_instance.get_opinion_full_text(123)
         assert text == "Full text content"
 
@@ -127,9 +120,7 @@ async def test_lookup_citation(client_instance):
     """Test looking up a citation."""
     mock_response = MagicMock()
     mock_response.json.return_value = {
-        "results": [
-            {"caseName": "Cited Case", "citation": ["410 U.S. 113"]}
-        ]
+        "results": [{"caseName": "Cited Case", "citation": ["410 U.S. 113"]}]
     }
     mock_response.status_code = 200
     mock_response.raise_for_status = MagicMock()
@@ -190,18 +181,18 @@ async def test_find_citing_cases_retry(client_instance):
     # First attempt (quoted query) fails to return results (returns empty list), second (unquoted) succeeds
 
     async def mock_request(method, url, params=None, **kwargs):
-        if params and '"410 U.S. 113"' in params.get('q', ''):
-             mock_empty = MagicMock()
-             mock_empty.json.return_value = {"results": []}
-             mock_empty.status_code = 200
-             mock_empty.raise_for_status = MagicMock()
-             return mock_empty
+        if params and '"410 U.S. 113"' in params.get("q", ""):
+            mock_empty = MagicMock()
+            mock_empty.json.return_value = {"results": []}
+            mock_empty.status_code = 200
+            mock_empty.raise_for_status = MagicMock()
+            return mock_empty
         else:
-             mock_success = MagicMock()
-             mock_success.json.return_value = {"results": [{"caseName": "Success"}]}
-             mock_success.status_code = 200
-             mock_success.raise_for_status = MagicMock()
-             return mock_success
+            mock_success = MagicMock()
+            mock_success.json.return_value = {"results": [{"caseName": "Success"}]}
+            mock_success.status_code = 200
+            mock_success.raise_for_status = MagicMock()
+            return mock_success
 
     client_instance.client.request = mock_request
 
@@ -220,6 +211,7 @@ async def test_close(client_instance):
     # We need to mock aclose as an async function
     async def mock_aclose():
         pass
+
     client_instance.client.aclose = mock_aclose
 
     await client_instance.close()
@@ -377,7 +369,9 @@ async def test_circuit_breaker_transitions(monkeypatch):
     )
     client = CourtListenerClient(settings)
 
-    success_response = httpx.Response(200, json={"ok": True}, request=httpx.Request("GET", "search/"))
+    success_response = httpx.Response(
+        200, json={"ok": True}, request=httpx.Request("GET", "search/")
+    )
 
     async def request_side_effect(*args, **kwargs):
         request_side_effect.call_count += 1

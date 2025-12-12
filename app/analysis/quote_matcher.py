@@ -95,9 +95,9 @@ class QuoteMatcher:
         # Case insensitive for fuzzy matching
         text = text.lower()
         # Remove punctuation variations
-        text = re.sub(r'[""''`]', '"', text)
+        text = re.sub(r'[""' "`]", '"', text)
         # Normalize ellipsis
-        text = re.sub(r'\.{3,}|\.\s\.\s\.', '...', text)
+        text = re.sub(r"\.{3,}|\.\s\.\s\.", "...", text)
         return text
 
     def calculate_similarity(self, text1: str, text2: str) -> float:
@@ -138,7 +138,7 @@ class QuoteMatcher:
             context_end = min(len(normalized_source), match.end() + self.context_chars)
 
             context_before = normalized_source[context_start:position]
-            context_after = normalized_source[match.end():context_end]
+            context_after = normalized_source[match.end() : context_end]
 
             matches.append(
                 QuoteMatch(
@@ -187,8 +187,10 @@ class QuoteMatcher:
         quote_words = normalized_quote.split()
         if len(quote_words) >= 3:
             # Check if at least 2 out of [first, middle, last] words appear
-            sample_words = [quote_words[0], quote_words[len(quote_words)//2], quote_words[-1]]
-            found_count = sum(1 for word in sample_words if len(word) > 3 and word in normalized_source)
+            sample_words = [quote_words[0], quote_words[len(quote_words) // 2], quote_words[-1]]
+            found_count = sum(
+                1 for word in sample_words if len(word) > 3 and word in normalized_source
+            )
             if found_count < 1:
                 # Quote very unlikely to be present, skip expensive matching
                 return []
@@ -247,7 +249,7 @@ class QuoteMatcher:
             context_end = min(len(source), position + len(matched_text) + self.context_chars)
 
             context_before = source[context_start:position]
-            context_after = source[position + len(matched_text):context_end]
+            context_after = source[position + len(matched_text) : context_end]
 
             # Find differences
             differences = self._find_differences(quote, matched_text)
@@ -338,7 +340,6 @@ class QuoteMatcher:
                 warnings=["Quote is empty"],
                 recommendation="Please provide a valid quote to verify",
             )
-
 
         # First try exact match
         exact_matches = self.find_quote_exact(quote, source)

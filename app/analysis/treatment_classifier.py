@@ -9,9 +9,9 @@ This module analyzes how citing cases treat a target case, classifying treatment
 import functools
 import logging
 import re
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import defaultdict
 
 from app.types import CourtListenerCase, TreatmentStats
 
@@ -175,6 +175,14 @@ class TreatmentClassifier:
         for s, w in POSITIVE_SIGNALS.values():
             self.signal_weights[(s, TreatmentType.POSITIVE)] = w
 
+        # For legacy compatibility or if iterative checks are restored
+        self.negative_patterns = {
+            re.compile(p, re.IGNORECASE): (s, w) for p, (s, w) in NEGATIVE_SIGNALS.items()
+        }
+        self.positive_patterns = {
+            re.compile(p, re.IGNORECASE): (s, w) for p, (s, w) in POSITIVE_SIGNALS.items()
+        }
+
     def should_fetch_full_text(
         self,
         initial_analysis: "TreatmentAnalysis",
@@ -240,7 +248,7 @@ class TreatmentClassifier:
         if re.match(r"d\d+", court_id) or "dist" in court_id:
             return 0.6
 
-        return 0.7
+        return 0.7  # State/other courts default
 
     def _map_opinion_type(self, op_type: str | None) -> str:
         """
@@ -274,6 +282,8 @@ class TreatmentClassifier:
         Returns:
             list[re.Pattern]: Compiled regex patterns that match the citation and, when applicable, its well-known case name. This function's results are cached.
         """
+    def _get_citation_patterns(self, citation: str) -> list[re.Pattern[str]]:
+        """Get compiled regex patterns for a citation (cached)."""
         citation_pattern = re.escape(citation).replace(r"\ ", r"\s+")
         patterns = [
             re.compile(citation_pattern, re.IGNORECASE),
@@ -283,9 +293,7 @@ class TreatmentClassifier:
         us_cite_match = re.match(r"(\d+)\s+U\.?S\.?\s+(\d+)", citation, re.IGNORECASE)
         if us_cite_match and citation in WELL_KNOWN_CASES:
             case_name = WELL_KNOWN_CASES[citation]
-            patterns.append(
-                re.compile(re.escape(case_name).replace(r"\ ", r"\s+"), re.IGNORECASE)
-            )
+            patterns.append(re.compile(re.escape(case_name).replace(r"\ ", r"\s+"), re.IGNORECASE))
         return patterns
 
     def extract_signals(
@@ -299,6 +307,14 @@ class TreatmentClassifier:
             citation (str): Citation string to locate and analyze within the text.
             opinion_type (str): Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
         
+        """Extract treatment signals from text mentioning the citation.
+
+        Args:
+            text: Text to analyze
+            citation: The citation being analyzed
+            opinion_type: Type of opinion (majority, concurrence, dissent)
+            opinion_type: Type of opinion (majority, dissent, etc.)
+
         Returns:
             signals (list[TreatmentSignal]): List of TreatmentSignal objects found; each includes the normalized signal name, inferred treatment type, position, a context excerpt, and the supplied `opinion_type`.
         """
@@ -306,6 +322,36 @@ class TreatmentClassifier:
         contexts = self._extract_citation_contexts(text, citation)
 
         for context, position in contexts:
+            # Check for negative signals
+            for pattern, (signal, weight) in self.negative_patterns.items():
+                for match in pattern.finditer(context):
+                    if self._is_negated(context, match.start()):
+                        continue
+                    signals.append(
+                        TreatmentSignal(
+                            signal=signal,
+                            treatment_type=TreatmentType.NEGATIVE,
+                            position=position,
+                            context=context[:200],
+                            opinion_type=opinion_type,
+                        )
+                    )
+
+            # Check for positive signals
+            for pattern, (signal, weight) in self.positive_patterns.items():
+                for match in pattern.finditer(context):
+                    if self._is_negated(context, match.start()):
+                        continue
+                    signals.append(
+                        TreatmentSignal(
+                            signal=signal,
+                            treatment_type=TreatmentType.POSITIVE,
+                            position=position,
+                            context=context[:200],
+                            opinion_type=opinion_type,
+                        )
+                    )
+
             # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
             for match in self.combined_signal_pattern.finditer(context):
                 group_name = match.lastgroup
@@ -403,13 +449,17 @@ class TreatmentClassifier:
         if majority_treatment == TreatmentType.NEGATIVE:
             treatment_context = "majority_negative"
             final_treatment = TreatmentType.NEGATIVE
-            _, conf = self._aggregate_signals([s for s in all_signals if s.opinion_type == "majority"])
+            _, conf = self._aggregate_signals(
+                [s for s in all_signals if s.opinion_type == "majority"]
+            )
             final_confidence = conf
 
         elif majority_treatment == TreatmentType.POSITIVE:
             treatment_context = "majority_positive"
             final_treatment = TreatmentType.POSITIVE
-            _, conf = self._aggregate_signals([s for s in all_signals if s.opinion_type == "majority"])
+            _, conf = self._aggregate_signals(
+                [s for s in all_signals if s.opinion_type == "majority"]
+            )
             final_confidence = conf
             if dissent_treatment == TreatmentType.NEGATIVE:
                 treatment_context = "majority_positive_dissent_negative"
@@ -427,20 +477,24 @@ class TreatmentClassifier:
             # If I say Negative, it implies the case is negative.
             # Let's say Negative, but with lower confidence?
             final_treatment = TreatmentType.NEGATIVE
-            _, conf = self._aggregate_signals([s for s in all_signals if s.opinion_type == "dissent"])
+            _, conf = self._aggregate_signals(
+                [s for s in all_signals if s.opinion_type == "dissent"]
+            )
             final_confidence = conf * 0.5  # Discount dissent confidence
 
         elif concurrence_treatment == TreatmentType.NEGATIVE:
             treatment_context = "concurrence_negative_only"
             final_treatment = TreatmentType.NEGATIVE
-            _, conf = self._aggregate_signals([s for s in all_signals if s.opinion_type == "concurrence"])
+            _, conf = self._aggregate_signals(
+                [s for s in all_signals if s.opinion_type == "concurrence"]
+            )
             final_confidence = conf * 0.7
 
         else:
             # Fallback to simple aggregation of all signals if no clear breakdown
             final_treatment, final_confidence = self._aggregate_signals(all_signals, court_weight)
             if final_treatment == TreatmentType.NEGATIVE:
-                treatment_context = "majority_negative" # assume majority if unsure
+                treatment_context = "majority_negative"  # assume majority if unsure
             elif final_treatment == TreatmentType.POSITIVE:
                 treatment_context = "majority_positive"
 
@@ -486,7 +540,9 @@ class TreatmentClassifier:
 
         # Calculate Breakdown by Opinion Type
         # We need to sum up stats across all cases
-        breakdown: dict[str, TreatmentStats] = defaultdict(lambda: {"positive": 0, "negative": 0, "neutral": 0})
+        breakdown: dict[str, TreatmentStats] = defaultdict(
+            lambda: {"positive": 0, "negative": 0, "neutral": 0}
+        )
 
         for t in treatments:
             for op_type, treatment in t.opinion_breakdown.items():
@@ -500,7 +556,8 @@ class TreatmentClassifier:
         # Determine Validity
         # Only Majority/Lead negatives flip validity
         critical_negative_cases = [
-            t for t in negative_treatments
+            t
+            for t in negative_treatments
             if t.confidence >= 0.7 and "dissent" not in t.treatment_context
         ]
 
@@ -540,7 +597,7 @@ class TreatmentClassifier:
             neutral_count,
             is_good_law,
             negative_treatments,
-            overall_context
+            overall_context,
         )
 
         return AggregatedTreatment(
@@ -567,21 +624,6 @@ class TreatmentClassifier:
     ) -> list[tuple[str, int]]:
         """Extract context windows around mentions of the citation."""
         contexts = []
-        citation_pattern = re.escape(citation).replace(r"\ ", r"\s+")
-        patterns_to_try = [re.compile(citation_pattern, re.IGNORECASE)]
-
-        us_cite_match = re.match(r"(\d+)\s+U\.?S\.?\s+(\d+)", citation, re.IGNORECASE)
-        if us_cite_match:
-            well_known_cases = {
-                "410 U.S. 113": "Roe v. Wade",
-                "539 U.S. 558": "Lawrence v. Texas",
-                "505 U.S. 833": "Planned Parenthood v. Casey",
-            }
-            if citation in well_known_cases:
-                case_name = well_known_cases[citation]
-                patterns_to_try.append(
-                    re.compile(re.escape(case_name).replace(r"\ ", r"\s+"), re.IGNORECASE)
-                )
 
         # Get cached patterns
         patterns_to_try = self._get_citation_patterns(citation)
@@ -644,6 +686,12 @@ class TreatmentClassifier:
             signal (str): Normalized signal name.
             treatment_type (TreatmentType): TreatmentType enum indicating positive or negative signal.
         
+        """Get the weight for a signal.
+
+        Args:
+            signal: Signal text
+            treatment_type: Type of treatment
+
         Returns:
             float: Weight between 0 and 1 for the signal; returns 0.5 if the signal is not found.
         """

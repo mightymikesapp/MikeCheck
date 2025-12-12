@@ -26,7 +26,9 @@ class FakeCacheManager:
         return self._stats
 
 
-def test_cache_clear_without_type(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cache_clear_without_type(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     manager = FakeCacheManager(cleared=3)
     monkeypatch.setattr(management, "get_cache_manager", lambda: manager)
 
@@ -45,7 +47,9 @@ def test_cache_clear_without_type(monkeypatch: pytest.MonkeyPatch, capsys: pytes
     assert manager.clear_calls == [None]
 
 
-def test_cache_clear_with_type(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cache_clear_with_type(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     manager = FakeCacheManager(cleared=1)
     monkeypatch.setattr(management, "get_cache_manager", lambda: manager)
 
@@ -64,11 +68,15 @@ def test_cache_clear_with_type(monkeypatch: pytest.MonkeyPatch, capsys: pytest.C
     assert manager.clear_calls == [CacheType.METADATA]
 
 
-def test_cache_clear_with_invalid_type(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cache_clear_with_invalid_type(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     manager = FakeCacheManager()
     monkeypatch.setattr(management, "get_cache_manager", lambda: manager)
 
-    exit_code = management.run(["cache:clear", "--type", "invalid"],)
+    exit_code = management.run(
+        ["cache:clear", "--type", "invalid"],
+    )
 
     captured = capsys.readouterr()
 

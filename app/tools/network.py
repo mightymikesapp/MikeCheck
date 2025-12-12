@@ -139,6 +139,7 @@ async def build_citation_network_impl(
         treatments = None
         if include_treatments:
             import asyncio
+
             log_event(
                 logger,
                 "Including treatment analysis in network",
@@ -186,9 +187,7 @@ async def build_citation_network_impl(
 
         # Build the network
         builder = CitationNetworkBuilder(max_depth=max_depth, max_nodes=max_nodes)
-        network = builder.build_network(
-            root_case, citing_cases, treatments, job_id=job_id
-        )
+        network = builder.build_network(root_case, citing_cases, treatments, job_id=job_id)
 
         # Get statistics
         statistics = builder.get_network_statistics(network)
@@ -511,9 +510,7 @@ async def get_network_statistics_impl(
             )[:5]
 
             try:
-                eigenvector_scores = nx.eigenvector_centrality(
-                    graph, weight="weight", max_iter=500
-                )
+                eigenvector_scores = nx.eigenvector_centrality(graph, weight="weight", max_iter=500)
                 top_ranked_nodes["eigenvector_centrality"] = sorted(
                     eigenvector_scores.items(), key=lambda x: x[1], reverse=True
                 )[:5]
@@ -560,9 +557,7 @@ async def get_network_statistics_impl(
         "graph_metrics": graph_metrics,
         "top_ranked_nodes": top_ranked_nodes,
         "insights": {
-            "most_active_year": max(temporal.items(), key=lambda x: x[1])[0]
-            if temporal
-            else None,
+            "most_active_year": max(temporal.items(), key=lambda x: x[1])[0] if temporal else None,
             "most_citing_court": max(court_dist.items(), key=lambda x: x[1])[0]
             if court_dist
             else None,
@@ -737,7 +732,7 @@ async def export_citation_network_impl(
                 "format": "graphml",
                 "content": content,
                 "filename": f"{citation.replace(' ', '_')}.graphml",
-                "mime_type": "application/xml"
+                "mime_type": "application/xml",
             }
         elif format.lower() == "json":
             content = generator.generate_json_graph(network)
@@ -745,7 +740,7 @@ async def export_citation_network_impl(
                 "format": "json",
                 "content": content,
                 "filename": f"{citation.replace(' ', '_')}.json",
-                "mime_type": "application/json"
+                "mime_type": "application/json",
             }
         elif format.lower() == "obsidian" or format.lower() == "canvas":
             content = generator.generate_obsidian_canvas(network)
@@ -753,10 +748,10 @@ async def export_citation_network_impl(
                 "format": "canvas",
                 "content": content,
                 "filename": f"{citation.replace(' ', '_')}.canvas",
-                "mime_type": "application/json"
+                "mime_type": "application/json",
             }
         else:
-             return {
+            return {
                 "error": f"Unsupported format: {format}. Supported: graphml, json, obsidian/canvas",
                 "citation": citation,
             }
@@ -1056,6 +1051,7 @@ async def visualize_citation_network(
         request_id=request_id,
     )
 
+
 @network_server.tool()
 @tool_logging("export_citation_network")
 async def export_citation_network(
@@ -1074,12 +1070,8 @@ async def export_citation_network(
     Returns:
         Dictionary with content, filename and mime_type
     """
-    return await export_citation_network_impl(
-        citation,
-        format,
-        max_nodes,
-        request_id
-    )
+    return await export_citation_network_impl(citation, format, max_nodes, request_id)
+
 
 @network_server.tool()
 @tool_logging("generate_citation_report")

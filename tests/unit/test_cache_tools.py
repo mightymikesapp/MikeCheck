@@ -86,6 +86,7 @@ def test_cache_clear_specific_types(mock_cache_manager, cache_type_str, cache_ty
         assert result["files_cleared"] == 10
         mock_cache_manager.clear.assert_called_once_with(cache_type_enum)
 
+
 @pytest.mark.unit
 def test_cache_clear_invalid_type_returns_error(mock_cache_manager):
     """Test that invalid cache type returns an error."""
@@ -116,6 +117,7 @@ def test_cache_clear_case_insensitive(mock_cache_manager, type_input, expected_e
         result = cache_clear_impl(type=type_input)
         assert result["status"] == "success"
         mock_cache_manager.clear.assert_called_once_with(expected_enum)
+
 
 @pytest.mark.unit
 def test_cache_stats_empty_cache(mock_cache_manager):

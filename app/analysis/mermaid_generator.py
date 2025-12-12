@@ -57,14 +57,14 @@ class MermaidGenerator:
             self.default_treatment_palette = {
                 "positive": "#228B22",  # Forest Green
                 "negative": "#DC143C",  # Crimson
-                "questioned": "#DAA520", # Goldenrod
-                "neutral": "#808080",    # Gray
+                "questioned": "#DAA520",  # Goldenrod
+                "neutral": "#808080",  # Gray
             }
             self.default_court_palette = {
-                "scotus": "#1a365d",   # Dark Blue
+                "scotus": "#1a365d",  # Dark Blue
                 "circuit": "#2c5282",  # Medium Blue
-                "district": "#4299e1", # Light Blue
-                "state": "#48bb78",    # Green
+                "district": "#4299e1",  # Light Blue
+                "state": "#48bb78",  # Green
                 "unknown": "#a0aec0",  # Gray
             }
             self.edge_styles = {
@@ -102,8 +102,14 @@ class MermaidGenerator:
             colors = ["#333", "#666", "#999", "#ccc"]
         else:
             colors = [
-                "#4A90E2", "#2DBE8D", "#FF9F1C", "#7B61FF",
-                "#EF476F", "#06D6A0", "#FFD166", "#118AB2",
+                "#4A90E2",
+                "#2DBE8D",
+                "#FF9F1C",
+                "#7B61FF",
+                "#EF476F",
+                "#06D6A0",
+                "#FFD166",
+                "#118AB2",
             ]
 
         palette = base_palette.copy()
@@ -178,13 +184,21 @@ class MermaidGenerator:
 
         treatment_lower = treatment.lower()
 
-        if any(neg in treatment_lower for neg in ["overruled", "reversed", "vacated", "abrogated", "superseded"]):
+        if any(
+            neg in treatment_lower
+            for neg in ["overruled", "reversed", "vacated", "abrogated", "superseded"]
+        ):
             return "negative"
 
-        if any(q in treatment_lower for q in ["questioned", "criticized", "limited", "distinguished"]):
+        if any(
+            q in treatment_lower for q in ["questioned", "criticized", "limited", "distinguished"]
+        ):
             return "questioned"
 
-        if any(pos in treatment_lower for pos in ["followed", "affirmed", "approved", "adopted", "cited"]):
+        if any(
+            pos in treatment_lower
+            for pos in ["followed", "affirmed", "approved", "adopted", "cited"]
+        ):
             return "positive"
 
         return "neutral"
@@ -206,7 +220,13 @@ class MermaidGenerator:
 
         # Process scores for sizing
         citation_scores, authority_scores = self._calculate_node_scores(network)
-        size_scores = citation_scores if node_size_by == "citation" else authority_scores if node_size_by == "authority" else {}
+        size_scores = (
+            citation_scores
+            if node_size_by == "citation"
+            else authority_scores
+            if node_size_by == "authority"
+            else {}
+        )
         max_size_score = max(size_scores.values()) if size_scores else 1
 
         # Resolve palettes
@@ -230,7 +250,9 @@ class MermaidGenerator:
             if include_dates and node.get("date_filed"):
                 label_parts.append(node["date_filed"][:4])
 
-            label = f"{label_parts[0]}<br/>{label_parts[1]}" if len(label_parts) > 1 else label_parts[0]
+            label = (
+                f"{label_parts[0]}<br/>{label_parts[1]}" if len(label_parts) > 1 else label_parts[0]
+            )
 
             classes = []
             if citation == network["root_citation"]:
@@ -259,7 +281,11 @@ class MermaidGenerator:
 
             treatment = edge.get("treatment")
             confidence = edge.get("confidence", 0)
-            edge_text = f"{self._sanitize_label(treatment, 15)}" if (treatment and confidence > 0) else "cites"
+            edge_text = (
+                f"{self._sanitize_label(treatment, 15)}"
+                if (treatment and confidence > 0)
+                else "cites"
+            )
 
             lines.append(f'    {from_id} -->|"{edge_text}"| {to_id}')
 
@@ -275,7 +301,14 @@ class MermaidGenerator:
                     lines.append(f"    linkStyle {link_index} {style_def}")
             link_index += 1
 
-        self._add_class_defs(lines, active_court_palette, active_treatment_palette, color_by_court, show_legend, node_size_by)
+        self._add_class_defs(
+            lines,
+            active_court_palette,
+            active_treatment_palette,
+            color_by_court,
+            show_legend,
+            node_size_by,
+        )
         return "\n".join(lines)
 
     def generate_hierarchical(
@@ -301,7 +334,7 @@ class MermaidGenerator:
             CourtLevel.CIRCUIT,
             CourtLevel.DISTRICT,
             CourtLevel.STATE,
-            CourtLevel.UNKNOWN
+            CourtLevel.UNKNOWN,
         ]
 
         # Generate subgraphs
@@ -342,7 +375,14 @@ class MermaidGenerator:
                     lines.append(f"    linkStyle {link_index} {style_def}")
                 link_index += 1
 
-        self._add_class_defs(lines, self.default_court_palette, self.default_treatment_palette, True, show_legend, None)
+        self._add_class_defs(
+            lines,
+            self.default_court_palette,
+            self.default_treatment_palette,
+            True,
+            show_legend,
+            None,
+        )
         return "\n".join(lines)
 
     def generate_mindmap(self, network: CitationNetworkResult) -> str:
@@ -368,7 +408,7 @@ class MermaidGenerator:
                 for edge in network["edges"]:
                     if edge["from_citation"] == node["citation"]:
                         if edge.get("treatment"):
-                             treatment = f"({edge['treatment']})"
+                            treatment = f"({edge['treatment']})"
                         break
 
                 lines.append(f"      {case_name} {treatment}")
@@ -409,7 +449,7 @@ class MermaidGenerator:
             timeline_data[year].append((case_name, treatment))
 
         lines = ["timeline"]
-        lines.append(f'    title History of {self._sanitize_label(network["root_case_name"])}')
+        lines.append(f"    title History of {self._sanitize_label(network['root_case_name'])}")
 
         for year in sorted(timeline_data.keys()):
             cases = timeline_data[year]
@@ -429,12 +469,14 @@ class MermaidGenerator:
         treatment_palette: dict[str, str],
         color_by_court: bool,
         show_legend: bool,
-        node_size_by: str | None
+        node_size_by: str | None,
     ) -> None:
         """Add CSS class definitions to the Mermaid diagram."""
         lines.append("")
         # Use style preset colors
-        lines.append(f"    classDef root fill:{court_palette.get('scotus', '#4A90E2')},stroke:#333,stroke-width:4px,color:#fff")
+        lines.append(
+            f"    classDef root fill:{court_palette.get('scotus', '#4A90E2')},stroke:#333,stroke-width:4px,color:#fff"
+        )
         lines.append("    classDef size-sm stroke-width:1px")
         lines.append("    classDef size-md stroke-width:2px,fill-opacity:90%")
         lines.append("    classDef size-lg stroke-width:3px,fill-opacity:85%")
@@ -451,15 +493,15 @@ class MermaidGenerator:
             lines.append("      direction TB")
 
             if color_by_court:
-                lines.append("      legend_courts[[\"Courts\"]]:::legend")
+                lines.append('      legend_courts[["Courts"]]:::legend')
                 for court_key, color in court_palette.items():
                     # Map court key to readable label
                     label = court_key.upper()
-                    lines.append(f"      legend_court_{court_key}[\"{label}\"]:::court_{court_key}")
+                    lines.append(f'      legend_court_{court_key}["{label}"]:::court_{court_key}')
 
             if node_size_by:
-                lines.append(f"      legend_sizes[[\"Size by {node_size_by}\"]]:::legend")
-                lines.append("      legend_large[\"High\"]:::size-lg")
+                lines.append(f'      legend_sizes[["Size by {node_size_by}"]]:::legend')
+                lines.append('      legend_large["High"]:::size-lg')
 
             lines.append("    end")
 
@@ -485,14 +527,14 @@ class MermaidGenerator:
             color_by_court=color_by_court,
             node_size_by=node_size_by,
             court_palette=court_palette,
-            show_legend=show_legend
+            show_legend=show_legend,
         )
 
     def generate_graphml(self, network: CitationNetworkResult) -> str:
         """Export GraphML with enhanced metadata."""
         lines = [
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
-            "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">",
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">',
             '  <key id="d0" for="node" attr.name="label" attr.type="string"/>',
             '  <key id="d1" for="node" attr.name="court" attr.type="string"/>',
             '  <key id="d2" for="node" attr.name="court_level" attr.type="string"/>',
@@ -517,7 +559,9 @@ class MermaidGenerator:
         for i, edge in enumerate(network.get("edges", [])):
             source = self._get_node_id(edge["from_citation"])
             target = self._get_node_id(edge["to_citation"])
-            lines.append(f'    <edge id="e{i}" source="{escape(source)}" target="{escape(target)}">')
+            lines.append(
+                f'    <edge id="e{i}" source="{escape(source)}" target="{escape(target)}">'
+            )
             lines.append(f'      <data key="d4">{escape(str(edge.get("treatment", "")))}</data>')
             lines.append(f'      <data key="d5">{edge.get("confidence", 0.0)}</data>')
             lines.append(f'      <data key="d6">{escape(edge.get("excerpt", ""))}</data>')
@@ -545,7 +589,7 @@ class MermaidGenerator:
                     "date_filed": node.get("date_filed"),
                     "citation_score": citation_scores.get(citation, 0),
                     "authority_score": authority_scores.get(citation, 0),
-                    "is_root": citation == network.get("root_citation")
+                    "is_root": citation == network.get("root_citation"),
                 }
             )
 
@@ -581,7 +625,7 @@ class MermaidGenerator:
             node_lookup[citation] = node_id
 
             is_root = citation == network.get("root_citation")
-            color = "1" if is_root else "2" # 1=Red, 2=Orange (Basic Obsidian colors)
+            color = "1" if is_root else "2"  # 1=Red, 2=Orange (Basic Obsidian colors)
 
             # Grid position
             x = (i % cols) * x_spacing
@@ -589,35 +633,36 @@ class MermaidGenerator:
 
             text = f"## {node['case_name']}\n**{citation}**\n\n{node.get('date_filed', '')}\n{node.get('court', '')}"
 
-            canvas_nodes.append({
-                "id": node_id,
-                "x": x,
-                "y": y,
-                "width": 300,
-                "height": 150,
-                "color": color,
-                "type": "text",
-                "text": text
-            })
+            canvas_nodes.append(
+                {
+                    "id": node_id,
+                    "x": x,
+                    "y": y,
+                    "width": 300,
+                    "height": 150,
+                    "color": color,
+                    "type": "text",
+                    "text": text,
+                }
+            )
 
         for edge in network.get("edges", []):
             from_id = node_lookup.get(edge["from_citation"])
             to_id = node_lookup.get(edge["to_citation"])
 
             if from_id and to_id:
-                canvas_edges.append({
-                    "id": str(uuid.uuid4()),
-                    "fromNode": from_id,
-                    "fromSide": "bottom",
-                    "toNode": to_id,
-                    "toSide": "top",
-                    "label": edge.get("treatment") or "cites"
-                })
+                canvas_edges.append(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "fromNode": from_id,
+                        "fromSide": "bottom",
+                        "toNode": to_id,
+                        "toSide": "top",
+                        "label": edge.get("treatment") or "cites",
+                    }
+                )
 
-        return {
-            "nodes": canvas_nodes,
-            "edges": canvas_edges
-        }
+        return {"nodes": canvas_nodes, "edges": canvas_edges}
 
     def generate_summary_stats(self, network: CitationNetworkResult) -> str:
         """Generate a text summary of network statistics."""

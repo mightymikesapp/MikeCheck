@@ -83,8 +83,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         yield
     except Exception as e:
-        logger.error(
-            f"Error during application lifecycle: {e}",
+        logger.exception(
+            "Error during application lifecycle",
+            exc_info=True,
             extra={"event": "error", "error": str(e)}
         )
     finally:

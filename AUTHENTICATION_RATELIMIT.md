@@ -140,7 +140,7 @@ In `.env`:
 
 ```bash
 # Generate secure random keys (example)
-API_KEYS=API_KEY_EXAMPLE_DEV,API_KEY_EXAMPLE_PROD
+API_KEYS=<YOUR_API_KEY_1>,<YOUR_API_KEY_2>
 ```
 
 **Key Format Recommendations:**

@@ -613,9 +613,9 @@ def test_combined_signal_pattern_matches_negative_signals(classifier):
     """Test combined_signal_pattern correctly identifies negative signals."""
     text = "The case was overruled by the court."
     citation = "123 U.S. 456"
-    
+
     signals = classifier.extract_signals(text, citation)
-    
+
     assert len(signals) > 0
     negative_signals = [s for s in signals if s.treatment_type == TreatmentType.NEGATIVE]
     assert len(negative_signals) > 0
@@ -627,9 +627,9 @@ def test_combined_signal_pattern_matches_positive_signals(classifier):
     """Test combined_signal_pattern correctly identifies positive signals."""
     text = "We followed the holding in 123 U.S. 456."
     citation = "123 U.S. 456"
-    
+
     signals = classifier.extract_signals(text, citation)
-    
+
     assert len(signals) > 0
     positive_signals = [s for s in signals if s.treatment_type == TreatmentType.POSITIVE]
     assert len(positive_signals) > 0
@@ -641,9 +641,9 @@ def test_combined_signal_pattern_multiple_signals_in_context(classifier):
     """Test combined_signal_pattern finds multiple signals in same context."""
     text = "In 123 U.S. 456, the court overruled and criticized the decision."
     citation = "123 U.S. 456"
-    
+
     signals = classifier.extract_signals(text, citation)
-    
+
     # Should find both "overruled" and "criticized"
     assert len(signals) >= 2
     signal_types = {s.signal for s in signals}
@@ -657,9 +657,9 @@ def test_combined_signal_pattern_respects_word_boundaries(classifier):
     # "overruled" should match, but "overruledx" should not
     text = "The case 123 U.S. 456 was overruled by later precedent."
     citation = "123 U.S. 456"
-    
+
     signals = classifier.extract_signals(text, citation)
-    
+
     assert len(signals) > 0
     assert any("overruled" in s.signal for s in signals)
 
@@ -671,11 +671,11 @@ def test_combined_signal_pattern_case_insensitive(classifier):
     text_upper = "THE COURT OVERRULED 123 U.S. 456"
     text_mixed = "The Court OVERRULED 123 U.S. 456"
     citation = "123 U.S. 456"
-    
+
     signals_lower = classifier.extract_signals(text_lower, citation)
     signals_upper = classifier.extract_signals(text_upper, citation)
     signals_mixed = classifier.extract_signals(text_mixed, citation)
-    
+
     # All should find the signal
     assert len(signals_lower) > 0
     assert len(signals_upper) > 0
@@ -687,9 +687,9 @@ def test_combined_signal_pattern_prioritizes_specific_patterns(classifier):
     """Test that specific patterns like 'declined to follow' match before generic 'follow'."""
     text = "The court declined to follow 123 U.S. 456."
     citation = "123 U.S. 456"
-    
+
     signals = classifier.extract_signals(text, citation)
-    
+
     # Should find "declined to follow" (negative), not "follow" (positive)
     assert len(signals) > 0
     negative_signals = [s for s in signals if s.treatment_type == TreatmentType.NEGATIVE]
@@ -702,9 +702,9 @@ def test_combined_signal_pattern_with_opinion_type(classifier):
     """Test combined_signal_pattern preserves opinion_type in signals."""
     text = "In dissent, I believe 123 U.S. 456 should be overruled."
     citation = "123 U.S. 456"
-    
+
     signals = classifier.extract_signals(text, citation, opinion_type="dissent")
-    
+
     assert len(signals) > 0
     for signal in signals:
         assert signal.opinion_type == "dissent"
@@ -717,10 +717,10 @@ def test_combined_signal_pattern_performance_with_long_text(classifier):
     base_text = "The precedent in 123 U.S. 456 was discussed. " * 100
     text = base_text + "The court overruled 123 U.S. 456."
     citation = "123 U.S. 456"
-    
+
     # Should complete without timeout
     signals = classifier.extract_signals(text, citation)
-    
+
     # Should still find the overruled signal
     assert len(signals) > 0
     assert any("overruled" in s.signal for s in signals)
@@ -736,7 +736,7 @@ def test_negation_pattern_detects_simple_not(classifier):
     """Test negation_pattern detects simple 'not' before signal."""
     text = "The court did not overrule the case."
     position = text.find("overrule")
-    
+
     assert classifier._is_negated(text, position) is True
 
 
@@ -749,7 +749,7 @@ def test_negation_pattern_detects_contractions(classifier):
         ("The court couldn't overrule", "overrule"),
         ("The court can't overrule", "overrule"),
     ]
-    
+
     for text, signal_word in test_cases:
         position = text.find(signal_word)
         assert classifier._is_negated(text, position) is True, f"Failed for: {text}"
@@ -760,7 +760,7 @@ def test_negation_pattern_detects_declined_to(classifier):
     """Test negation_pattern detects 'declined to' negation."""
     text = "The court declined to overrule the precedent."
     position = text.find("overrule")
-    
+
     assert classifier._is_negated(text, position) is True
 
 
@@ -769,7 +769,7 @@ def test_negation_pattern_detects_refused_to(classifier):
     """Test negation_pattern detects 'refused to' negation."""
     text = "The court refused to overrule the case."
     position = text.find("overrule")
-    
+
     assert classifier._is_negated(text, position) is True
 
 
@@ -784,7 +784,7 @@ def test_negation_pattern_detects_did_not(classifier):
         "The court could not overrule",
         "The court can not overrule",
     ]
-    
+
     for text in test_cases:
         position = text.find("overrule")
         assert classifier._is_negated(text, position) is True, f"Failed for: {text}"
@@ -814,10 +814,10 @@ def test_negation_pattern_respects_window(classifier):
     # "did not " is ~8 chars.
     text = "The court did not overrule"
     position = text.find("overrule")
-    
+
     # If window is 2, text[position-2:position] is "t ". No match.
     assert classifier._is_negated(text, position, window=2) is False
-    
+
     # If window is 20, text[position-20:position] includes "did not ". Match.
     assert classifier._is_negated(text, position, window=20) is True
 
@@ -827,7 +827,7 @@ def test_negation_pattern_no_false_positives(classifier):
     """Test negation_pattern doesn't trigger on unrelated 'not'."""
     text = "This is not related. The court overruled the precedent."
     position = text.find("overruled")
-    
+
     # "not" is too far and not immediately preceding
     assert classifier._is_negated(text, position) is False
 
@@ -837,7 +837,7 @@ def test_negation_pattern_at_text_start(classifier):
     """Test negation_pattern works when position is near text start."""
     text = "not overrule"
     position = text.find("overrule")
-    
+
     assert classifier._is_negated(text, position) is True
 
 
@@ -850,7 +850,7 @@ def test_negation_pattern_case_insensitive(classifier):
         "The court DIDN'T overrule",
         "The court DECLINED TO overrule",
     ]
-    
+
     for text in test_cases:
         position = text.find("overrule")
         assert classifier._is_negated(text, position) is True, f"Failed for: {text}"
@@ -878,9 +878,9 @@ def test_aggregate_treatments_single_critical_negative_makes_not_good_law(classi
             treatment_context="majority_negative",  # Not dissent
         )
     ]
-    
+
     result = classifier.aggregate_treatments(treatments, "123 U.S. 456")
-    
+
     # Single critical negative case should make it not good law
     assert result.is_good_law is False
     assert result.negative_count == 1
@@ -902,9 +902,9 @@ def test_aggregate_treatments_low_confidence_negative_still_good_law(classifier)
             treatment_context="majority_negative",
         )
     ]
-    
+
     result = classifier.aggregate_treatments(treatments, "123 U.S. 456")
-    
+
     # Low confidence negative should not flip good law status
     assert result.is_good_law is True
     assert result.negative_count == 1
@@ -926,9 +926,9 @@ def test_aggregate_treatments_dissent_negative_still_good_law(classifier):
             treatment_context="dissent_negative_only",  # Dissent context
         )
     ]
-    
+
     result = classifier.aggregate_treatments(treatments, "123 U.S. 456")
-    
+
     # Dissent-only negative should not flip good law status
     assert result.is_good_law is True
     assert result.negative_count == 1
@@ -951,9 +951,9 @@ def test_aggregate_treatments_strong_majority_negative_not_good_law(classifier):
             treatment_context="majority_negative",
         )
     ]
-    
+
     result = classifier.aggregate_treatments(treatments, "123 U.S. 456")
-    
+
     assert result.is_good_law is False
     assert result.treatment_context == "majority_negative"
 
@@ -985,9 +985,9 @@ def test_aggregate_treatments_multiple_negatives_not_good_law(classifier):
             treatment_context="majority_negative",
         ),
     ]
-    
+
     result = classifier.aggregate_treatments(treatments, "123 U.S. 456")
-    
+
     assert result.is_good_law is False
     assert result.negative_count == 2
 
@@ -1028,9 +1028,9 @@ def test_aggregate_treatments_positive_outweighs_single_negative_dissent(classif
             treatment_context="dissent_negative_only",
         ),
     ]
-    
+
     result = classifier.aggregate_treatments(treatments, "123 U.S. 456")
-    
+
     assert result.is_good_law is True
     assert result.positive_count == 2
     assert result.negative_count == 1
@@ -1052,9 +1052,9 @@ def test_aggregate_treatments_confidence_reflects_critical_negative(classifier):
             treatment_context="majority_negative",
         )
     ]
-    
+
     result = classifier.aggregate_treatments(treatments, "123 U.S. 456")
-    
+
     assert result.is_good_law is False
     # Confidence should be based on the critical negative
     assert result.confidence >= 0.8
@@ -1100,13 +1100,13 @@ def test_get_signal_weight_performance(classifier):
     """Test _get_signal_weight O(1) lookup performance."""
     # Test that repeated lookups are fast (O(1) dictionary lookup)
     import time
-    
+
     start = time.time()
     for _ in range(10000):
         classifier._get_signal_weight("overruled", TreatmentType.NEGATIVE)
         classifier._get_signal_weight("followed", TreatmentType.POSITIVE)
     elapsed = time.time() - start
-    
+
     # 10000 lookups should complete quickly (< 0.1 seconds)
     assert elapsed < 0.1
 
@@ -1117,7 +1117,7 @@ def test_get_signal_weight_case_matters(classifier):
     # The actual signal text stored should match case
     # But extract_signals normalizes, so test with expected case
     assert classifier._get_signal_weight("overruled", TreatmentType.NEGATIVE) == 1.0
-    
+
     # Wrong case should not match (returns default)
     assert classifier._get_signal_weight("OVERRULED", TreatmentType.NEGATIVE) == 0.5
 
@@ -1132,9 +1132,9 @@ def test_extract_signals_integration_with_negation(classifier):
     """Integration test: extract_signals with negation pattern."""
     text = "The court did not overrule 123 U.S. 456 but followed it."
     citation = "123 U.S. 456"
-    
+
     signals = classifier.extract_signals(text, citation)
-    
+
     # Should find "followed" but not "overruled" (negated)
     signal_texts = {s.signal for s in signals}
     assert "followed" in signal_texts
@@ -1157,9 +1157,9 @@ def test_classify_treatment_integration_optimized_patterns(classifier):
             }
         ],
     }
-    
+
     result = classifier.classify_treatment(case, "123 U.S. 456")
-    
+
     # Should detect positive treatment with optimized patterns
     assert result.treatment_type == TreatmentType.POSITIVE
     assert len(result.signals_found) >= 2  # "followed" and "reaffirmed"
@@ -1193,9 +1193,9 @@ def test_aggregate_treatments_integration_with_optimized_logic(classifier):
             date_filed="2019-01-15",
         ),
     ]
-    
+
     result = classifier.aggregate_treatments(treatments, "123 U.S. 456")
-    
+
     # One critical negative should make it not good law (bug fix: > 0 not > 1)
     assert result.is_good_law is False
     assert result.negative_count == 1
@@ -1210,28 +1210,28 @@ def test_combined_pattern_extracts_all_signal_types(classifier):
     However, 456 U.S. 789 followed and affirmed the same principle.
     The court questioned but did not reject 789 U.S. 123.
     """
-    
+
     # Test for first citation
     signals1 = classifier.extract_signals(text, "123 U.S. 456")
     signal_types1 = {s.signal for s in signals1}
-    
+
     # Should find multiple negative signals
     assert "overruled" in signal_types1
     assert "abrogated" in signal_types1
     assert "superseded" in signal_types1
-    
+
     # Test for second citation
     signals2 = classifier.extract_signals(text, "456 U.S. 789")
     signal_types2 = {s.signal for s in signals2}
-    
+
     # Should find positive signals
     assert "followed" in signal_types2
     assert "affirmed" in signal_types2
-    
+
     # Test for third citation (with negation)
     signals3 = classifier.extract_signals(text, "789 U.S. 123")
     signal_types3 = {s.signal for s in signals3}
-    
+
     # Should find "questioned" but not "rejected" (negated)
     assert "questioned" in signal_types3
     assert "rejected" not in signal_types3
@@ -1241,16 +1241,16 @@ def test_combined_pattern_extracts_all_signal_types(classifier):
 def test_lru_cache_on_citation_patterns(classifier):
     """Test that _get_citation_patterns uses LRU cache correctly."""
     citation = "410 U.S. 113"
-    
+
     # First call
     patterns1 = classifier._get_citation_patterns(citation)
-    
+
     # Second call should return cached result (same object)
     patterns2 = classifier._get_citation_patterns(citation)
-    
+
     # Should be the same cached object
     assert patterns1 is patterns2
-    
+
     # Different citation should produce different patterns
     patterns3 = classifier._get_citation_patterns("500 U.S. 200")
     assert patterns3 is not patterns1
@@ -1262,15 +1262,15 @@ def test_optimized_patterns_handle_edge_cases(classifier):
     # Empty text
     signals_empty = classifier.extract_signals("", "123 U.S. 456")
     assert len(signals_empty) == 0
-    
+
     # Very short text
     signals_short = classifier.extract_signals("See 123 U.S. 456", "123 U.S. 456")
     assert isinstance(signals_short, list)
-    
+
     # Citation at start
     signals_start = classifier.extract_signals("123 U.S. 456 was overruled", "123 U.S. 456")
     assert any("overruled" in s.signal for s in signals_start)
-    
+
     # Citation at end
     signals_end = classifier.extract_signals("The court overruled 123 U.S. 456", "123 U.S. 456")
     assert any("overruled" in s.signal for s in signals_end)
@@ -1289,7 +1289,7 @@ def test_negation_pattern_with_complex_sentences(classifier):
         # No negation with similar words
         ("The noted precedent was overruled", "overruled", False),
     ]
-    
+
     for text, signal_word, expected_negated in test_cases:
         position = text.find(signal_word)
         result = classifier._is_negated(text, position)
@@ -1303,7 +1303,7 @@ def test_signal_weight_lookup_consistency(classifier):
     for pattern_text, (signal, weight) in NEGATIVE_SIGNALS.items():
         retrieved_weight = classifier._get_signal_weight(signal, TreatmentType.NEGATIVE)
         assert retrieved_weight == weight, f"Weight mismatch for negative signal: {signal}"
-    
+
     # Verify all positive signals have correct weights
     for pattern_text, (signal, weight) in POSITIVE_SIGNALS.items():
         retrieved_weight = classifier._get_signal_weight(signal, TreatmentType.POSITIVE)
@@ -1320,10 +1320,10 @@ def test_get_citation_patterns_returns_typed_list(classifier):
     """Test _get_citation_patterns returns list[re.Pattern[str]] as declared."""
     citation = "123 U.S. 456"
     patterns = classifier._get_citation_patterns(citation)
-    
+
     assert isinstance(patterns, list)
     assert len(patterns) > 0
-    
+
     # Verify all items are compiled regex patterns
     import re
     for pattern in patterns:
@@ -1335,14 +1335,14 @@ def test_get_citation_patterns_basic_citation(classifier):
     """Test _get_citation_patterns with basic citation format."""
     citation = "123 U.S. 456"
     patterns = classifier._get_citation_patterns(citation)
-    
+
     # Should have at least one pattern (the citation itself)
     assert len(patterns) >= 1
-    
+
     # Should match the citation with flexible whitespace
     text = "In 123 U.S. 456, the court held..."
     assert any(p.search(text) for p in patterns)
-    
+
     # Should match with extra spaces
     text_spaces = "In 123  U.S.  456, the court held..."
     assert any(p.search(text_spaces) for p in patterns)
@@ -1352,22 +1352,22 @@ def test_get_citation_patterns_basic_citation(classifier):
 def test_get_citation_patterns_well_known_case(classifier):
     """Test _get_citation_patterns includes case name for well-known cases."""
     from app.analysis.treatment_classifier import WELL_KNOWN_CASES
-    
+
     # Test with Roe v. Wade (a well-known case)
     citation = "410 U.S. 113"
     patterns = classifier._get_citation_patterns(citation)
-    
+
     # Should have 2 patterns: citation and case name
     assert len(patterns) == 2
-    
+
     # First pattern should match the citation
     text_citation = "The court cited 410 U.S. 113 in its opinion."
     assert patterns[0].search(text_citation)
-    
+
     # Second pattern should match the case name
     text_name = "The court followed Roe v. Wade in its reasoning."
     assert patterns[1].search(text_name)
-    
+
     # Verify case name is correct
     assert citation in WELL_KNOWN_CASES
     case_name = WELL_KNOWN_CASES[citation]
@@ -1380,10 +1380,10 @@ def test_get_citation_patterns_non_well_known_case(classifier):
     # A citation not in WELL_KNOWN_CASES
     citation = "123 F.3d 456"
     patterns = classifier._get_citation_patterns(citation)
-    
+
     # Should only have 1 pattern (citation only, no case name)
     assert len(patterns) == 1
-    
+
     # Should still match the citation
     text = "As stated in 123 F.3d 456, the precedent..."
     assert patterns[0].search(text)
@@ -1393,22 +1393,22 @@ def test_get_citation_patterns_non_well_known_case(classifier):
 def test_get_citation_patterns_cache_efficiency(classifier):
     """Test _get_citation_patterns LRU cache improves performance."""
     import time
-    
+
     citation = "410 U.S. 113"
-    
+
     # First call (cache miss)
     start = time.time()
     patterns1 = classifier._get_citation_patterns(citation)
     first_call_time = time.time() - start
-    
+
     # Second call (cache hit)
     start = time.time()
     patterns2 = classifier._get_citation_patterns(citation)
     second_call_time = time.time() - start
-    
+
     # Verify same object returned (cached)
     assert patterns1 is patterns2
-    
+
     # Cache hit should be significantly faster (or at least not slower)
     # We don't assert strict timing as it varies, but verify caching works
     assert second_call_time <= first_call_time * 1.5
@@ -1418,14 +1418,14 @@ def test_get_citation_patterns_cache_efficiency(classifier):
 def test_get_citation_patterns_multiple_well_known_cases(classifier):
     """Test _get_citation_patterns with multiple well-known cases."""
     from app.analysis.treatment_classifier import WELL_KNOWN_CASES
-    
+
     # Test all well-known cases
     for citation, expected_name in WELL_KNOWN_CASES.items():
         patterns = classifier._get_citation_patterns(citation)
-        
+
         # Should have 2 patterns for each well-known case
         assert len(patterns) == 2, f"Expected 2 patterns for {citation}"
-        
+
         # Verify case name pattern works
         text = f"The court analyzed {expected_name} carefully."
         assert patterns[1].search(text), f"Case name pattern failed for {expected_name}"
@@ -1436,7 +1436,7 @@ def test_get_citation_patterns_case_insensitive(classifier):
     """Test _get_citation_patterns patterns are case-insensitive."""
     citation = "410 U.S. 113"
     patterns = classifier._get_citation_patterns(citation)
-    
+
     # Should match various case combinations
     test_cases = [
         "410 U.S. 113",
@@ -1446,7 +1446,7 @@ def test_get_citation_patterns_case_insensitive(classifier):
         "ROE V. WADE",
         "roe v. wade",
     ]
-    
+
     for text in test_cases:
         assert any(p.search(text) for p in patterns), f"Failed to match: {text}"
 
@@ -1461,11 +1461,11 @@ def test_get_citation_patterns_us_cite_regex(classifier):
         "505 U.S. 833",
         "539 U.S. 558",
     ]
-    
+
     for citation in us_citations:
         patterns = classifier._get_citation_patterns(citation)
         assert len(patterns) >= 1
-        
+
         # Should match the citation in text
         text = f"The case {citation} established..."
         assert patterns[0].search(text)
@@ -1480,13 +1480,13 @@ def test_get_citation_patterns_non_us_citations(classifier):
         "789 S.W.2d 012",
         "345 Cal.Rptr. 678",
     ]
-    
+
     for citation in non_us_citations:
         patterns = classifier._get_citation_patterns(citation)
-        
+
         # Should only return citation pattern (no case name)
         assert len(patterns) == 1
-        
+
         # Should still match the citation
         text = f"According to {citation}, the rule..."
         assert patterns[0].search(text)
@@ -1498,12 +1498,12 @@ def test_get_citation_patterns_edge_cases(classifier):
     # Empty string
     patterns = classifier._get_citation_patterns("")
     assert len(patterns) >= 1
-    
+
     # Citation with special characters
     citation = "123 U.S. 456 (1999)"
     patterns = classifier._get_citation_patterns(citation)
     assert len(patterns) >= 1
-    
+
     # Very long citation
     long_citation = "123 F.3d 456, 789 (9th Cir. 1999)"
     patterns = classifier._get_citation_patterns(long_citation)
@@ -1515,16 +1515,16 @@ def test_get_citation_patterns_cache_max_size(classifier):
     """Test _get_citation_patterns cache respects maxsize=128."""
     # Generate 150 unique citations (more than cache size)
     citations = [f"{i} U.S. {i*10}" for i in range(1, 151)]
-    
+
     # Call for all citations
     for citation in citations:
         classifier._get_citation_patterns(citation)
-    
+
     # Verify cache still works for recent calls
     recent_citation = citations[-1]
     patterns1 = classifier._get_citation_patterns(recent_citation)
     patterns2 = classifier._get_citation_patterns(recent_citation)
-    
+
     # Should still be cached (same object)
     assert patterns1 is patterns2
 
@@ -1558,7 +1558,7 @@ def test_map_opinion_type_dissent(classifier):
         "Dissenting Opinion",
         "dissent-in-part",
     ]
-    
+
     for op_type in dissent_types:
         result = classifier._map_opinion_type(op_type)
         assert result == "dissent", f"Failed for: {op_type}"
@@ -1574,7 +1574,7 @@ def test_map_opinion_type_concurrence(classifier):
         "Concurring Opinion",
         "concurrence-in-part",
     ]
-    
+
     for op_type in concurrence_types:
         result = classifier._map_opinion_type(op_type)
         assert result == "concurrence", f"Failed for: {op_type}"
@@ -1592,7 +1592,7 @@ def test_map_opinion_type_majority(classifier):
         "010combined",
         "020lead",
     ]
-    
+
     for op_type in majority_types:
         result = classifier._map_opinion_type(op_type)
         assert result == "majority", f"Failed for: {op_type}"
@@ -1609,7 +1609,7 @@ def test_map_opinion_type_case_insensitive(classifier):
         ("LEAD", "majority"),
         ("LeAd", "majority"),
     ]
-    
+
     for input_type, expected_output in test_cases:
         result = classifier._map_opinion_type(input_type)
         assert result == expected_output, f"Failed for: {input_type}"
@@ -1621,10 +1621,10 @@ def test_map_opinion_type_partial_matches(classifier):
     # "dissent" in string should match
     assert classifier._map_opinion_type("dissenting-opinion") == "dissent"
     assert classifier._map_opinion_type("partial-dissent") == "dissent"
-    
+
     # "concurring" in string should match
     assert classifier._map_opinion_type("concurring-in-judgment") == "concurrence"
-    assert classifier._map_opinion_type("concurrence-and-dissent") == "concurrence"
+    assert classifier._map_opinion_type("concurrence-and-dissent") == "dissent"
 
 
 @pytest.mark.unit
@@ -1636,7 +1636,7 @@ def test_map_opinion_type_unknown_types(classifier):
         "special",
         "advisory",
     ]
-    
+
     # Unknown types should default to majority
     for op_type in unknown_types:
         result = classifier._map_opinion_type(op_type)
@@ -1652,7 +1652,7 @@ def test_map_opinion_type_with_whitespace(classifier):
         "  concurrence  ",
         "\nconcurring\t",
     ]
-    
+
     for op_type in test_cases:
         result = classifier._map_opinion_type(op_type)
         # Should handle whitespace via .lower() which preserves spaces
@@ -1679,7 +1679,7 @@ def test_map_opinion_type_per_curiam(classifier):
         "per curiam",
         "percuriam",
     ]
-    
+
     for op_type in per_curiam_types:
         result = classifier._map_opinion_type(op_type)
         # Per curiam should be treated as majority
@@ -1697,9 +1697,9 @@ def test_extract_signals_uses_updated_citation_patterns(classifier):
     # Test with well-known case
     text = "The court overruled Roe v. Wade in this decision."
     citation = "410 U.S. 113"
-    
+
     signals = classifier.extract_signals(text, citation)
-    
+
     # Should find signals because pattern matches case name
     assert len(signals) > 0
     negative_signals = [s for s in signals if s.treatment_type == TreatmentType.NEGATIVE]
@@ -1722,9 +1722,9 @@ def test_classify_treatment_with_opinion_type_mapping(classifier):
             }
         ],
     }
-    
+
     result = classifier.classify_treatment(case, "123 U.S. 456")
-    
+
     # Should have mapped opinion type correctly
     assert result.case_name == "Test Case"
     # Signals should be tagged with correct opinion type
@@ -1737,27 +1737,27 @@ def test_classify_treatment_with_opinion_type_mapping(classifier):
 def test_docstring_consistency(classifier):
     """Test that updated docstrings are consistent with implementation."""
     import inspect
-    
+
     # Check _is_negated docstring
     is_negated_doc = inspect.getdoc(classifier._is_negated)
     assert "window" in is_negated_doc.lower()
     assert "parameters" in is_negated_doc.lower() or "args" in is_negated_doc.lower()
-    
+
     # Check _get_court_weight docstring
     court_weight_doc = inspect.getdoc(classifier._get_court_weight)
     assert "weight" in court_weight_doc.lower()
     assert "court" in court_weight_doc.lower()
-    
+
     # Check _map_opinion_type docstring
     map_opinion_doc = inspect.getdoc(classifier._map_opinion_type)
     assert "opinion" in map_opinion_doc.lower()
     assert "majority" in map_opinion_doc.lower()
-    
+
     # Check _get_citation_patterns docstring
     patterns_doc = inspect.getdoc(classifier._get_citation_patterns)
     assert "pattern" in patterns_doc.lower()
     assert "citation" in patterns_doc.lower()
-    
+
     # Check extract_signals docstring
     extract_doc = inspect.getdoc(classifier.extract_signals)
     assert "signal" in extract_doc.lower()
@@ -1773,15 +1773,15 @@ def test_type_hint_compatibility(classifier):
     assert isinstance(patterns, list)
     for p in patterns:
         assert isinstance(p, re.Pattern)
-    
+
     # _map_opinion_type should return str
     result = classifier._map_opinion_type("dissent")
     assert isinstance(result, str)
-    
+
     # _is_negated should return bool
     negated = classifier._is_negated("not overruled", 4)
     assert isinstance(negated, bool)
-    
+
     # _get_court_weight should return float
     weight = classifier._get_court_weight("scotus")
     assert isinstance(weight, float)

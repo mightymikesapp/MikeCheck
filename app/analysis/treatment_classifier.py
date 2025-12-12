@@ -621,7 +621,7 @@ class TreatmentClassifier:
         Parameters:
             signals (list[TreatmentSignal]): Extracted signals to aggregate.
             court_weight (float): Multiplier (typically 0.0-1.0+) applied to the selected signal's weight to adjust confidence based on the citing court's importance.
-        
+
         Returns:
             tuple[TreatmentType, float]: A pair of the aggregated TreatmentType and a confidence score between 0 and 1 (default 0.5 when neutral).
         """

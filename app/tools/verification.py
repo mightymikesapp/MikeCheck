@@ -378,66 +378,58 @@ async def batch_verify_quotes_impl(
         query_params={"total_quotes": len(quotes)},
         event="batch_verify_quotes",
     ):
+        # Helper to preserve index
+        async def verify_with_index(index: int, q_data: dict[str, str]) -> tuple[int, dict[str, Any]]:
+            quote = q_data.get("quote", "")
+            citation = q_data.get("citation", "")
+            pinpoint = q_data.get("pinpoint")
+
+            if not quote or not citation:
+                return index, {
+                    "error": "Missing quote or citation",
+                    "quote": quote,
+                    "citation": citation,
+                    "job_id": job_id,
+                }
+
+            try:
+                result = await verify_quote_impl(
+                    quote,
+                    citation,
+                    pinpoint,
+                    request_id=request_id,
+                    job_id=job_id,
+                )
+                return index, result
+            except Exception as exc:  # noqa: BLE001
+                return index, {
+                    "error": f"Verification failed: {exc}",
+                    "quote": quote,
+                    "citation": citation,
+                    "job_id": job_id,
+                }
+
         # Build tasks for parallel execution
-        tasks: list[asyncio.Task[dict[str, Any]]] = []
-        task_to_index: dict[asyncio.Task[dict[str, Any]], int] = {}
+        tasks = []
         progress_interval = 10
 
-        for i, quote_data in enumerate(quotes, 1):
+        for i, quote_data in enumerate(quotes):
             log_event(
                 logger,
                 "Queuing quote for verification",
                 tool_name="batch_verify_quotes",
                 request_id=request_id,
                 job_id=job_id,
-                query_params={"index": i, "citation": quote_data.get("citation")},
+                query_params={"index": i + 1, "citation": quote_data.get("citation")},
             )
-
-            quote = quote_data.get("quote", "")
-            citation = quote_data.get("citation", "")
-            pinpoint = quote_data.get("pinpoint")
-
-            if not quote or not citation:
-                # Create a coroutine that returns error result
-                async def return_error(q=quote, c=citation):
-                    return {
-                        "error": "Missing quote or citation",
-                        "quote": q,
-                        "citation": c,
-                        "job_id": job_id,
-                    }
-
-                task = asyncio.create_task(return_error())
-            else:
-                task = asyncio.create_task(
-                    verify_quote_impl(
-                        quote,
-                        citation,
-                        pinpoint,
-                        request_id=request_id,
-                        job_id=job_id,
-                    )
-                )
-
-            task_to_index[task] = i - 1
-            tasks.append(task)
+            tasks.append(verify_with_index(i, quote_data))
 
         total_quotes = len(quotes)
-        results: list[dict[str, Any] | None] = [None] * total_quotes
+        results_list: list[dict[str, Any] | None] = [None] * total_quotes
 
-        for completed_index, task in enumerate(asyncio.as_completed(tasks), 1):
-            task_index = task_to_index[task]
-            try:
-                result = await task
-            except Exception as exc:  # noqa: BLE001
-                result = {
-                    "error": f"Verification failed: {exc}",
-                    "quote": quotes[task_index].get("quote", ""),
-                    "citation": quotes[task_index].get("citation", ""),
-                    "job_id": job_id,
-                }
-
-            results[task_index] = result
+        for completed_index, future in enumerate(asyncio.as_completed(tasks), 1):
+            index, result = await future
+            results_list[index] = result
 
             if total_quotes >= progress_interval:
                 if completed_index % progress_interval == 0 or completed_index == total_quotes:
@@ -451,7 +443,7 @@ async def batch_verify_quotes_impl(
                         event="batch_verify_quotes_progress",
                     )
 
-        results = [result or {} for result in results]
+        results = [result or {} for result in results_list]
 
         # Summary statistics
         total = len(results)

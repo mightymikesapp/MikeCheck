@@ -19,6 +19,9 @@ updates:
       include: "scope"
     allow:
       - dependency-type: "all"
+    groups:
+      security-updates:
+        applies-to: security-updates
     ignore:
       # Ignore major version updates for stability
       # - dependency-name: "fastapi"
@@ -40,7 +43,6 @@ updates:
     commit-message:
       prefix: "ci(actions):"
       include: "scope"
-
-# Security settings
-security-advisories: "report"  # Create security alerts for vulnerabilities
-security-updates-only: false   # Include non-security updates
+    groups:
+      security-updates:
+        applies-to: security-updates

@@ -75,7 +75,7 @@ API_KEYS=<YOUR_API_KEY_1>,<YOUR_API_KEY_2>,<YOUR_API_KEY_3>
 Most secure method - sends key in HTTP Authorization header:
 
 ```bash
-curl -H "Authorization: Bearer API_KEY_EXAMPLE_DEV" \
+curl -H "Authorization: Bearer <YOUR_API_KEY>" \
   https://api.example.com/herding/analyze \
   -d '{"citation": "410 U.S. 113"}'
 ```

@@ -60,6 +60,9 @@ chroma_db/
 # Documentation
 docs/
 *.md
+!README.md
+!MONITORING.md
+!GRACEFUL_SHUTDOWN.md
 LICENSE
 
 # CI/CD

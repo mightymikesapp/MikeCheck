@@ -84,8 +84,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         yield
     except Exception as e:
         logger.error(
-            f"Error during application lifecycle: {e}",
-            extra={"event": "error", "error": str(e)}
+            "Error during application lifecycle",
+            extra={"event": "error", "error": str(e)},
         )
     finally:
         # SHUTDOWN
@@ -95,8 +95,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # This delay allows clients to notice connection close and reconnect
         drain_timeout = 15  # seconds
         logger.info(
-            f"Draining connections (waiting {drain_timeout}s for in-flight requests)",
-            extra={"event": "draining", "timeout_seconds": drain_timeout}
+            "Draining connections, waiting for in-flight requests",
+            extra={"event": "draining", "timeout_seconds": drain_timeout},
         )
         await asyncio.sleep(drain_timeout)
 
@@ -109,7 +109,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # await cache_manager.close()
             pass
         except Exception as e:
-            logger.error(f"Error closing cache: {e}")
+            logger.error(
+                "Error closing cache",
+                extra={"event": "cache_cleanup_error", "error": str(e)},
+            )
 
         logger.info("Shutdown complete", extra={"event": "shutdown_complete"})
 
@@ -166,7 +169,7 @@ async def metrics_middleware(
         )
 
         logger.error(
-            f"Request error: {error_type}",
+            "Request error",
             extra={"event": "request_error", "error_type": error_type},
         )
         raise

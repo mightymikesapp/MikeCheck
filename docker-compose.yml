@@ -57,8 +57,6 @@ services:
     restart: on-failure
 
 volumes:
-  .cache:
-    driver: local
   citation_networks:
     driver: local
   chroma_db:

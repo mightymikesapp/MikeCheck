@@ -160,9 +160,9 @@ class TreatmentClassifier:
         negation_patterns = [
             r"not\s+$",
             r"(?:did|does|do|will|would|could|can)\s+not\s+$",
-            r"(?:did|does|do|will|would|could|can)n't\s+$",
-            r"declined\s+to\s+$",
-            r"refused\s+to\s+$",
+            r"(?:did|does|do|will|would|could|ca)n't\s+$",
+            r"declin(?:ed|e)\s+to\s+$",
+            r"refus(?:ed|e)\s+to\s+$",
         ]
         self.negation_pattern = re.compile(
             r"\b(?:" + "|".join(f"(?:{p})" for p in negation_patterns) + ")", re.IGNORECASE
@@ -270,18 +270,6 @@ class TreatmentClassifier:
         return "majority"  # lead, combined, per_curiam, etc.
 
     @functools.lru_cache(maxsize=128)
-    def _get_citation_patterns(self, citation: str) -> list[re.Pattern]:
-        """
-        Return compiled regular-expression patterns to locate mentions of a citation in text.
-        
-        Always includes a pattern that matches the exact citation with flexible whitespace (e.g., spaces or tabs). If the citation matches a US-style reporter pattern like "123 U.S. 456" and is present in WELL_KNOWN_CASES, also includes a pattern that matches the corresponding well-known case name.
-        
-        Parameters:
-            citation (str): The citation string to compile patterns for.
-        
-        Returns:
-            list[re.Pattern]: Compiled regex patterns that match the citation and, when applicable, its well-known case name. This function's results are cached.
-        """
     def _get_citation_patterns(self, citation: str) -> list[re.Pattern[str]]:
         """Get compiled regex patterns for a citation (cached)."""
         citation_pattern = re.escape(citation).replace(r"\ ", r"\s+")
@@ -299,21 +287,12 @@ class TreatmentClassifier:
     def extract_signals(
         self, text: str, citation: str, opinion_type: str = "majority"
     ) -> list[TreatmentSignal]:
-        """
-        Extracts treatment signals for a specific citation from the provided text.
-        
-        Parameters:
-            text (str): Text to search for mentions of the citation.
-            citation (str): Citation string to locate and analyze within the text.
-            opinion_type (str): Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
-        
         """Extract treatment signals from text mentioning the citation.
 
         Args:
             text: Text to analyze
             citation: The citation being analyzed
             opinion_type: Type of opinion (majority, concurrence, dissent)
-            opinion_type: Type of opinion (majority, dissent, etc.)
 
         Returns:
             signals (list[TreatmentSignal]): List of TreatmentSignal objects found; each includes the normalized signal name, inferred treatment type, position, a context excerpt, and the supplied `opinion_type`.
@@ -322,36 +301,6 @@ class TreatmentClassifier:
         contexts = self._extract_citation_contexts(text, citation)
 
         for context, position in contexts:
-            # Check for negative signals
-            for pattern, (signal, weight) in self.negative_patterns.items():
-                for match in pattern.finditer(context):
-                    if self._is_negated(context, match.start()):
-                        continue
-                    signals.append(
-                        TreatmentSignal(
-                            signal=signal,
-                            treatment_type=TreatmentType.NEGATIVE,
-                            position=position,
-                            context=context[:200],
-                            opinion_type=opinion_type,
-                        )
-                    )
-
-            # Check for positive signals
-            for pattern, (signal, weight) in self.positive_patterns.items():
-                for match in pattern.finditer(context):
-                    if self._is_negated(context, match.start()):
-                        continue
-                    signals.append(
-                        TreatmentSignal(
-                            signal=signal,
-                            treatment_type=TreatmentType.POSITIVE,
-                            position=position,
-                            context=context[:200],
-                            opinion_type=opinion_type,
-                        )
-                    )
-
             # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
             for match in self.combined_signal_pattern.finditer(context):
                 group_name = match.lastgroup
@@ -679,13 +628,6 @@ class TreatmentClassifier:
         return TreatmentType.NEUTRAL, 0.5
 
     def _get_signal_weight(self, signal: str, treatment_type: TreatmentType) -> float:
-        """
-        Retrieve the predefined weight for a normalized treatment signal.
-        
-        Parameters:
-            signal (str): Normalized signal name.
-            treatment_type (TreatmentType): TreatmentType enum indicating positive or negative signal.
-        
         """Get the weight for a signal.
 
         Args:

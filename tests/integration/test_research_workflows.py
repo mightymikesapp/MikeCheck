@@ -19,7 +19,12 @@ def real_case_data():
         "dateFiled": "1973-01-22",
         "court": "scotus",
         "cluster_id": 100,
-        "opinions": [{"id": 1, "snippet": "The right to privacy has been recognized in Supreme Court precedent."}],
+        "opinions": [
+            {
+                "id": 1,
+                "snippet": "The right to privacy has been recognized in Supreme Court precedent.",
+            }
+        ],
     }
 
     citing_cases = [
@@ -29,10 +34,7 @@ def real_case_data():
             "dateFiled": "1992-06-29",
             "court": "scotus",
             "cluster_id": 200,
-            "opinions": [{
-                "id": 2,
-                "snippet": "We reaffirm the essential holding of Roe v. Wade."
-            }],
+            "opinions": [{"id": 2, "snippet": "We reaffirm the essential holding of Roe v. Wade."}],
         },
         {
             "caseName": "Dobbs v. Jackson Women's Health Organization",
@@ -40,10 +42,7 @@ def real_case_data():
             "dateFiled": "2022-06-24",
             "court": "scotus",
             "cluster_id": 300,
-            "opinions": [{
-                "id": 3,
-                "snippet": "Roe v. Wade was wrongly decided and is overruled."
-            }],
+            "opinions": [{"id": 3, "snippet": "Roe v. Wade was wrongly decided and is overruled."}],
         },
     ]
 
@@ -54,7 +53,7 @@ def real_case_data():
             "100": "The right to privacy has been recognized in Supreme Court precedent from the beginning of this Court's adjudication of rights grounded in the concept of personal liberty.",
             "200": "We reaffirm the essential holding of Roe v. Wade. The ability of women to participate equally in the economic and social life of the Nation has been facilitated by their ability to control their reproductive lives.",
             "300": "Roe v. Wade was wrongly decided and is overruled. The Constitution does not confer a right to abortion.",
-        }
+        },
     }
 
 

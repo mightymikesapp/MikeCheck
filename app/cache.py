@@ -74,7 +74,10 @@ class CacheManager:
                 if isinstance(value, (list, tuple)):
                     return sorted([normalize(v) for v in value], key=str)
                 if isinstance(value, dict):
-                    return {k.lower() if isinstance(k, str) else k: normalize(v) for k, v in value.items()}
+                    return {
+                        k.lower() if isinstance(k, str) else k: normalize(v)
+                        for k, v in value.items()
+                    }
                 return value
 
             normalized = {
@@ -245,13 +248,13 @@ class CacheManager:
             "size_bytes": size_bytes,
             "size_mb": round(size_bytes / (1024 * 1024), 2),
             "base_dir": str(self.base_dir),
-            "ttls": {
-                t.value: self._get_ttl(t) for t in CacheType
-            }
+            "ttls": {t.value: self._get_ttl(t) for t in CacheType},
         }
+
 
 # Global instance
 _cache_manager: CacheManager | None = None
+
 
 def get_cache_manager() -> CacheManager:
     """Get or create the global cache manager."""

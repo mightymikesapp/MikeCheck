@@ -16,6 +16,7 @@ async def test_lookup(mock_client):
 
     mock_client.lookup_citation.assert_called_with("410 U.S. 113")
 
+
 @pytest.mark.asyncio
 async def test_search_opinions(mock_client):
     """Test searching for opinions."""

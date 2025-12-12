@@ -5,14 +5,13 @@ serving as a free alternative to Shepard's Citations and KeyCite.
 """
 
 import logging
-from collections import defaultdict
 from datetime import datetime
 from typing import Any, cast
 
 from dateutil.relativedelta import relativedelta
 from fastmcp import FastMCP
 
-from app.analysis.treatment_classifier import TreatmentAnalysis, TreatmentClassifier
+from app.analysis.treatment_classifier import TreatmentClassifier
 from app.config import settings
 from app.logging_config import tool_logging
 from app.logging_utils import log_event, log_operation
@@ -94,7 +93,9 @@ async def check_case_validity_impl(
             return {
                 "error": "Unexpected response format when fetching citing cases.",
                 "citation": citation,
-                "failed_requests": _coerce_failed_requests(citing_cases_result.get("failed_requests")),
+                "failed_requests": _coerce_failed_requests(
+                    citing_cases_result.get("failed_requests")
+                ),
                 "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
                 "incomplete_data": True,
                 "job_id": job_id,
@@ -105,7 +106,9 @@ async def check_case_validity_impl(
             return {
                 "error": "No usable citing cases returned from API response.",
                 "citation": citation,
-                "failed_requests": _coerce_failed_requests(citing_cases_result.get("failed_requests")),
+                "failed_requests": _coerce_failed_requests(
+                    citing_cases_result.get("failed_requests")
+                ),
                 "warnings": _coerce_warnings(citing_cases_result.get("warnings")),
                 "incomplete_data": True,
                 "job_id": job_id,
@@ -127,44 +130,52 @@ async def check_case_validity_impl(
         )
 
         initial_treatments = []
+        cases_for_full_text = []
+        strategy = settings.fetch_full_text_strategy
+
         for citing_case in citing_cases:
             analysis = classifier.classify_treatment(citing_case, citation)
             initial_treatments.append((citing_case, analysis))
 
-        cases_for_full_text = []
-        strategy = settings.fetch_full_text_strategy
-        for citing_case, initial_analysis in initial_treatments:
-            if classifier.should_fetch_full_text(initial_analysis, strategy):
-                cases_for_full_text.append((citing_case, initial_analysis))
+            if classifier.should_fetch_full_text(analysis, strategy):
+                cases_for_full_text.append((citing_case, analysis))
 
         # Parallel Fetching Logic
         import asyncio
-        fetch_tasks = []
-        for citing_case, initial_analysis in initial_treatments:
-            needs_full_text = any(c is citing_case for c, _ in cases_for_full_text)
-            if needs_full_text and len(fetch_tasks) < settings.max_full_text_fetches:
-                opinion_ids = []
-                for op in citing_case.get("opinions", []):
-                    if isinstance(op, dict) and isinstance(op.get("id"), int):
-                        opinion_ids.append(op["id"])
-                if opinion_ids:
-                    fetch_tasks.append((citing_case, initial_analysis, opinion_ids[0]))
+
+        fetch_tasks: list[tuple[CourtListenerCase, TreatmentAnalysis, int]] = []
+        for citing_case, initial_analysis in cases_for_full_text:
+            if len(fetch_tasks) >= settings.max_full_text_fetches:
+                break
+
+            opinion_ids = []
+            for op in citing_case.get("opinions", []):
+                if isinstance(op, dict) and isinstance(op.get("id"), int):
+                    opinion_ids.append(op["id"])
+            if opinion_ids:
+                fetch_tasks.append((citing_case, initial_analysis, opinion_ids[0]))
 
         semaphore = asyncio.Semaphore(5)
 
         async def fetch_with_limit(case, analysis, opinion_id):
             async with semaphore:
                 try:
-                    full_text = await client.get_opinion_full_text(opinion_id, request_id=request_id)
+                    full_text = await client.get_opinion_full_text(
+                        opinion_id, request_id=request_id
+                    )
                     if full_text:
-                        return (case, classifier.classify_treatment(case, citation, full_text=full_text), True)
+                        return (
+                            case,
+                            classifier.classify_treatment(case, citation, full_text=full_text),
+                            True,
+                        )
                     return (case, analysis, False)
                 except Exception:
                     return (case, analysis, False)
 
         fetch_results = await asyncio.gather(
             *[fetch_with_limit(case, analysis, op_id) for case, analysis, op_id in fetch_tasks],
-            return_exceptions=True
+            return_exceptions=True,
         )
 
         case_to_enhanced_analysis = {}
@@ -201,18 +212,22 @@ async def check_case_validity_impl(
             warnings = []
             for neg_treatment in aggregated.negative_treatments:
                 for signal in neg_treatment.signals_found[:2]:
-                    warnings.append({
-                        "signal": signal.signal,
-                        "case_name": neg_treatment.case_name,
-                        "citation": neg_treatment.citation,
-                        "date_filed": neg_treatment.date_filed,
-                        "excerpt": signal.context,
-                        "opinion_type": signal.opinion_type,
-                    })
+                    warnings.append(
+                        {
+                            "signal": signal.signal,
+                            "case_name": neg_treatment.case_name,
+                            "citation": neg_treatment.citation,
+                            "date_filed": neg_treatment.date_filed,
+                            "excerpt": signal.context,
+                            "opinion_type": signal.opinion_type,
+                        }
+                    )
 
             base_confidence = aggregated.confidence
             failed_requests = _coerce_failed_requests(citing_cases_result.get("failed_requests"))
-            incomplete_data = _coerce_incomplete_flag(citing_cases_result.get("incomplete_data")) or bool(failed_requests)
+            incomplete_data = _coerce_incomplete_flag(
+                citing_cases_result.get("incomplete_data")
+            ) or bool(failed_requests)
 
             if incomplete_data:
                 base_confidence = max(base_confidence * 0.8, 0.3)
@@ -269,7 +284,9 @@ async def get_citing_cases_impl(
         job_id=job_id,
         query_params={"citation": citation},
     ):
-        citing_cases_result = await client.find_citing_cases(citation, limit=limit, request_id=request_id)
+        citing_cases_result = await client.find_citing_cases(
+            citation, limit=limit, request_id=request_id
+        )
         raw_results = citing_cases_result.get("results")
         if not isinstance(raw_results, list):
             return {"citation": citation, "total_found": 0, "citing_cases": []}
@@ -281,17 +298,19 @@ async def get_citing_cases_impl(
             if treatment_filter:
                 if analysis.treatment_type.value != treatment_filter.lower():
                     continue
-            treatments.append({
-                "case_name": analysis.case_name,
-                "citation": analysis.citation,
-                "date_filed": analysis.date_filed,
-                "treatment": analysis.treatment_type.value,
-                "confidence": round(analysis.confidence, 2),
-                "signals": [s.signal for s in analysis.signals_found],
-                "excerpt": analysis.excerpt,
-                "treatment_context": analysis.treatment_context,
-                "opinion_breakdown": analysis.opinion_breakdown,
-            })
+            treatments.append(
+                {
+                    "case_name": analysis.case_name,
+                    "citation": analysis.citation,
+                    "date_filed": analysis.date_filed,
+                    "treatment": analysis.treatment_type.value,
+                    "confidence": round(analysis.confidence, 2),
+                    "signals": [s.signal for s in analysis.signals_found],
+                    "excerpt": analysis.excerpt,
+                    "treatment_context": analysis.treatment_context,
+                    "opinion_breakdown": analysis.opinion_breakdown,
+                }
+            )
 
         return {
             "citation": citation,
@@ -317,12 +336,10 @@ async def treatment_timeline_impl(
 
     # 2. Get all citing cases (max limit to get good distribution)
     # Using a higher limit for timeline to be meaningful
-    citing_cases_result = await client.find_citing_cases(
-        citation, limit=300, request_id=request_id
-    )
+    citing_cases_result = await client.find_citing_cases(citation, limit=300, request_id=request_id)
     raw_results = citing_cases_result.get("results")
     if not isinstance(raw_results, list):
-         return {"error": "Failed to fetch citing cases"}
+        return {"error": "Failed to fetch citing cases"}
 
     citing_cases = _coerce_cases(raw_results)
 
@@ -338,7 +355,7 @@ async def treatment_timeline_impl(
             "citation": citation,
             "case_name": case_name,
             "buckets": [],
-            "metadata": {"total_citing_cases": 0}
+            "metadata": {"total_citing_cases": 0},
         }
 
     # 4. Bucket Logic
@@ -348,7 +365,7 @@ async def treatment_timeline_impl(
     try:
         start_date = datetime.strptime(treatments[0].date_filed, "%Y-%m-%d")
     except (ValueError, TypeError):
-        start_date = datetime.now() # Fallback
+        start_date = datetime.now()  # Fallback
 
     # Determine bucket delta
     if buckets.endswith("y"):
@@ -369,18 +386,23 @@ async def treatment_timeline_impl(
         "positive_count": 0,
         "negative_count": 0,
         "neutral_count": 0,
-        "key_cases": []
+        "key_cases": [],
     }
 
     for t in treatments:
         try:
             t_date = datetime.strptime(t.date_filed, "%Y-%m-%d")
-        except:
+        except (ValueError, TypeError):
             continue
 
         while t_date > current_end:
             # Close current bucket
-            if current_bucket["positive_count"] + current_bucket["negative_count"] + current_bucket["neutral_count"] > 0:
+            if (
+                current_bucket["positive_count"]
+                + current_bucket["negative_count"]
+                + current_bucket["neutral_count"]
+                > 0
+            ):
                 bucket_bins.append(current_bucket)
 
             # Start new bucket
@@ -392,7 +414,7 @@ async def treatment_timeline_impl(
                 "positive_count": 0,
                 "negative_count": 0,
                 "neutral_count": 0,
-                "key_cases": []
+                "key_cases": [],
             }
 
         # Add to current bucket
@@ -406,20 +428,27 @@ async def treatment_timeline_impl(
         # Add key case (prioritize negative/positive)
         if len(current_bucket["key_cases"]) < 3:
             if t.treatment_type.value != "neutral" or len(current_bucket["key_cases"]) < 1:
-                current_bucket["key_cases"].append({
-                    "citation": t.citation,
-                    "case_name": t.case_name,
-                    "treatment": t.treatment_type.value,
-                    "date_filed": t.date_filed
-                })
+                current_bucket["key_cases"].append(
+                    {
+                        "citation": t.citation,
+                        "case_name": t.case_name,
+                        "treatment": t.treatment_type.value,
+                        "date_filed": t.date_filed,
+                    }
+                )
 
     # Append last bucket
-    if current_bucket["positive_count"] + current_bucket["negative_count"] + current_bucket["neutral_count"] > 0:
+    if (
+        current_bucket["positive_count"]
+        + current_bucket["negative_count"]
+        + current_bucket["neutral_count"]
+        > 0
+    ):
         bucket_bins.append(current_bucket)
 
     # 5. Generate Mermaid Timeline
     mermaid_lines = ["timeline"]
-    mermaid_lines.append(f'    title History of {case_name}')
+    mermaid_lines.append(f"    title History of {case_name}")
     for bucket in bucket_bins:
         year_label = bucket["start_date"][:4]
         mermaid_lines.append(f"    {year_label}")
@@ -432,16 +461,16 @@ async def treatment_timeline_impl(
         "case_name": case_name,
         "bucket_size": buckets,
         "buckets": bucket_bins,
-        "metadata": {
-            "total_citing_cases": len(treatments)
-        },
-        "mermaid_timeline": "\n".join(mermaid_lines)
+        "metadata": {"total_citing_cases": len(treatments)},
+        "mermaid_timeline": "\n".join(mermaid_lines),
     }
+
 
 treatment_server: FastMCP[ToolPayload] = FastMCP(
     name="Treatment Analysis Tools",
     instructions="Tools for analyzing case treatment and validity (Shepardizing alternative)",
 )
+
 
 @treatment_server.tool()
 @tool_logging("check_case_validity")
@@ -462,7 +491,9 @@ async def get_citing_cases(
     job_id: str | None = None,
 ) -> dict[str, Any]:
     """Get cases that cite a given citation."""
-    return await get_citing_cases_impl(citation, treatment_filter, limit, request_id=request_id, job_id=job_id)
+    return await get_citing_cases_impl(
+        citation, treatment_filter, limit, request_id=request_id, job_id=job_id
+    )
 
 
 @treatment_server.tool()

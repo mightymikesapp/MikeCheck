@@ -4,8 +4,8 @@ This module provides heuristics to automatically label the legal issue
 associated with a citation based on its context in the citing opinion.
 """
 
-import re
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ SECTION_HEADER_PATTERNS = [
     # Numbered: 1. Jurisdiction
     r"^\d+\.\s+([A-Z][a-zA-Z0-9\s\-,]+)$",
 ]
+
 
 class IssueDiscoverer:
     """Discoverer for legal issues in text."""
@@ -43,7 +44,7 @@ class IssueDiscoverer:
         # 2. Try to find key phrase in the same sentence
         phrase = self._extract_key_phrase(text, citation)
         if phrase:
-             return {"label": phrase, "source": "auto_discovered_keyword"}
+            return {"label": phrase, "source": "auto_discovered_keyword"}
 
         return {"label": "General Application", "source": "fallback"}
 

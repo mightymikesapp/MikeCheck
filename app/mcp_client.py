@@ -307,9 +307,7 @@ class CourtListenerClient:
                 )
                 raise
 
-    async def get_opinion_full_text(
-        self, opinion_id: int, request_id: str | None = None
-    ) -> str:
+    async def get_opinion_full_text(self, opinion_id: int, request_id: str | None = None) -> str:
         """Get the full text of a specific opinion.
 
         Args:
@@ -531,7 +529,9 @@ class CourtListenerClient:
             warnings: list[str] = []
             confidence = 1.0
 
-            async def _perform_search(query: str) -> tuple[str, dict[str, Any] | None, Exception | None]:
+            async def _perform_search(
+                query: str,
+            ) -> tuple[str, dict[str, Any] | None, Exception | None]:
                 params = {
                     "q": query,
                     "type": "o",  # Opinion type
@@ -581,7 +581,9 @@ class CourtListenerClient:
                 error_msg = str(error)
                 if isinstance(error, httpx.HTTPError):
                     status_code = (
-                        error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
+                        error.response.status_code
+                        if isinstance(error, httpx.HTTPStatusError)
+                        else None
                     )
                 else:
                     status_code = None

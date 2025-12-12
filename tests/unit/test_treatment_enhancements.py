@@ -9,6 +9,7 @@ from app.analysis.treatment_classifier import TreatmentClassifier, TreatmentType
 def classifier():
     return TreatmentClassifier()
 
+
 def test_expanded_negative_signals(classifier):
     """Test new negative signal patterns."""
     text = "The court declined to follow the reasoning in Roe."
@@ -22,6 +23,7 @@ def test_expanded_negative_signals(classifier):
     assert len(signals) > 0
     assert signals[0].signal == "disagreed with"
 
+
 def test_expanded_positive_signals(classifier):
     """Test new positive signal patterns."""
     text = "This court cited with approval the decision in Roe."
@@ -34,6 +36,7 @@ def test_expanded_positive_signals(classifier):
     signals = classifier.extract_signals(text, "Roe")
     assert len(signals) > 0
     assert signals[0].signal == "harmonized"
+
 
 def test_negation_handling(classifier):
     """Test generic negation handling."""
@@ -59,6 +62,7 @@ def test_negation_handling(classifier):
     assert len(signals) == 1
     assert signals[0].signal == "overruled"
 
+
 def test_court_hierarchy_weighting(classifier):
     """Test court hierarchy weighting."""
     # Mock extract_signals to return our dummy signal
@@ -70,10 +74,7 @@ def test_court_hierarchy_weighting(classifier):
     from app.analysis.treatment_classifier import TreatmentSignal
 
     signal = TreatmentSignal(
-        signal="overruled",
-        treatment_type=TreatmentType.NEGATIVE,
-        position=0,
-        context=""
+        signal="overruled", treatment_type=TreatmentType.NEGATIVE, position=0, context=""
     )
 
     # SCOTUS: 1.0 * 1.0 = 1.0
@@ -87,6 +88,7 @@ def test_court_hierarchy_weighting(classifier):
     # District Court: 1.0 * 0.6 = 0.6
     type_, conf = classifier._aggregate_signals([signal], court_weight=0.6)
     assert conf == 0.6
+
 
 def test_distinguished_weight(classifier):
     """Test refined weight for 'distinguished'."""

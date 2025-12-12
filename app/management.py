@@ -68,7 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     clear_parser = subparsers.add_parser("cache:clear", help="Clear cached CourtListener responses")
-    clear_parser.add_argument("--type", help="Optional cache type to clear (metadata, text, search)")
+    clear_parser.add_argument(
+        "--type", help="Optional cache type to clear (metadata, text, search)"
+    )
     clear_parser.set_defaults(handler=_handle_cache_clear)
 
     stats_parser = subparsers.add_parser("cache:stats", help="Show cache statistics")

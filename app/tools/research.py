@@ -74,9 +74,7 @@ async def _format_brief_summary(
             if detail_parts:
                 treatment_summary = "; ".join(detail_parts)
 
-        summary_lines.append(
-            f"- **{citation_label} – {case_name}**: {treatment_summary}"
-        )
+        summary_lines.append(f"- **{citation_label} – {case_name}**: {treatment_summary}")
 
         if case.get("mermaid"):
             summary_lines.append("  - Mermaid visualization already available")
@@ -130,9 +128,7 @@ async def _analyze_citation(
         if "error" in lookup:
             return {"citation": citation, "error": lookup.get("error", "Lookup failed")}
 
-        treatment = await check_case_validity_impl(
-            citation, request_id=request_id, job_id=job_id
-        )
+        treatment = await check_case_validity_impl(citation, request_id=request_id, job_id=job_id)
         network = await build_citation_network_impl(
             citation=citation,
             max_depth=settings.network_max_depth,
@@ -186,16 +182,12 @@ async def run_research_pipeline_impl(
     case_results = []
     for citation in citations:
         case_results.append(
-            await _analyze_citation(
-                citation, scope, mermaid_generator, request_id, job_id
-            )
+            await _analyze_citation(citation, scope, mermaid_generator, request_id, job_id)
         )
 
     quote_results: dict[str, Any] | None = None
     if quotes:
-        quote_results = await batch_verify_quotes_impl(
-            quotes, request_id=request_id, job_id=job_id
-        )
+        quote_results = await batch_verify_quotes_impl(quotes, request_id=request_id, job_id=job_id)
 
     summary_lines: list[str] = ["# Research Pipeline Summary"]
     if scope:
@@ -326,15 +318,20 @@ async def issue_map_impl(
     cases_to_process = []
 
     if primary_case:
-        citing_result = await client.find_citing_cases(primary_case, limit=50, request_id=request_id)
+        citing_result = await client.find_citing_cases(
+            primary_case, limit=50, request_id=request_id
+        )
         for c in citing_result.get("results", []):
-            if not isinstance(c, dict): continue
-            cases_to_process.append({
-                "citation": c.get("citation", ["?"])[0],
-                "case_name": c.get("caseName"),
-                "text_context": c.get("snippet") or "",
-                "source": "citing_primary"
-            })
+            if not isinstance(c, dict):
+                continue
+            cases_to_process.append(
+                {
+                    "citation": c.get("citation", ["?"])[0],
+                    "case_name": c.get("caseName"),
+                    "text_context": c.get("snippet") or "",
+                    "source": "citing_primary",
+                }
+            )
 
     if citations:
         for cite in citations:
@@ -342,22 +339,24 @@ async def issue_map_impl(
                 continue
 
             c = await client.lookup_citation(cite, request_id=request_id)
-            if "error" in c: continue
+            if "error" in c:
+                continue
 
             # For lookup results, we might not have a "citing snippet" because it's the case itself.
             # But we can try to find what it talks about from syllabus.
-            cases_to_process.append({
-                "citation": cite,
-                "case_name": c.get("caseName"),
-                "text_context": c.get("syllabus") or c.get("snippet") or "",
-                "source": "user_list"
-            })
+            cases_to_process.append(
+                {
+                    "citation": cite,
+                    "case_name": c.get("caseName"),
+                    "text_context": c.get("syllabus") or c.get("snippet") or "",
+                    "source": "user_list",
+                }
+            )
 
     # Grouping Logic
-    issues: defaultdict[str, dict] = defaultdict(lambda: {
-        "source": "auto_discovered",
-        "supporting_cases": []
-    })
+    issues: defaultdict[str, dict] = defaultdict(
+        lambda: {"source": "auto_discovered", "supporting_cases": []}
+    )
 
     # Initialize user questions
     for q in questions:
@@ -374,11 +373,13 @@ async def issue_map_impl(
             # This is "coarse" but fits the requirement.
             keywords = [w.lower() for w in q.split() if len(w) > 4]
             if keywords and any(k in text.lower() for k in keywords):
-                issues[q]["supporting_cases"].append({
-                    "citation": citation,
-                    "case_name": case["case_name"],
-                    "snippet": text[:200] + "..."
-                })
+                issues[q]["supporting_cases"].append(
+                    {
+                        "citation": citation,
+                        "case_name": case["case_name"],
+                        "snippet": text[:200] + "...",
+                    }
+                )
                 matched = True
                 break
 
@@ -392,30 +393,34 @@ async def issue_map_impl(
 
         # If label is generic, maybe group under "Other"
         if label == "General Application" and not questions:
-             # Keep it
-             pass
+            # Keep it
+            pass
         elif label == "General Application":
-             label = "Unclassified"
+            label = "Unclassified"
 
         if label not in issues:
             issues[label] = {"source": "auto_discovered", "supporting_cases": []}
 
-        issues[label]["supporting_cases"].append({
-            "citation": citation,
-            "case_name": case["case_name"],
-            "snippet": text[:200] + "...",
-            "discovery_method": source
-        })
+        issues[label]["supporting_cases"].append(
+            {
+                "citation": citation,
+                "case_name": case["case_name"],
+                "snippet": text[:200] + "...",
+                "discovery_method": source,
+            }
+        )
 
     # Format output
     final_issues = []
     for label, data in issues.items():
         if data["supporting_cases"]:
-            final_issues.append({
-                "label": label,
-                "source": data["source"],
-                "supporting_cases": data["supporting_cases"]
-            })
+            final_issues.append(
+                {
+                    "label": label,
+                    "source": data["source"],
+                    "supporting_cases": data["supporting_cases"],
+                }
+            )
 
     summary_lines = ["# Issue Map"]
     if primary_case:
@@ -423,7 +428,7 @@ async def issue_map_impl(
 
     for issue in final_issues:
         summary_lines.append(f"\n## {issue['label']} ({issue['source']})")
-        for case in issue['supporting_cases'][:5]: # Limit for summary
+        for case in issue["supporting_cases"][:5]:  # Limit for summary
             summary_lines.append(f"- **{case['citation']}**: {case['case_name']}")
 
     return {
@@ -480,14 +485,10 @@ async def check_api_status(request_id: str | None = None) -> dict[str, Any]:
             "status": "healthy",
             "latency_seconds": latency,
             "service": "CourtListener API",
-            "test_citation": "410 U.S. 113"
+            "test_citation": "410 U.S. 113",
         }
     except Exception as e:
-        return {
-            "status": "down",
-            "error": str(e),
-            "latency_seconds": time.time() - start_time
-        }
+        return {"status": "down", "error": str(e), "latency_seconds": time.time() - start_time}
 
 
 async def outline_support_pipeline_impl(

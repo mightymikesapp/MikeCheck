@@ -1,4 +1,3 @@
-
 import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -19,10 +18,12 @@ from app.mcp_client import (
 def run(coro):
     return asyncio.run(coro)
 
+
 def make_http_error(status_code: int) -> httpx.HTTPStatusError:
     request = httpx.Request("GET", "https://example.com")
     response = httpx.Response(status_code, request=request)
     return httpx.HTTPStatusError("Error", request=request, response=response)
+
 
 def test_retry_logic(monkeypatch):
     """Client should retry on 5xx errors."""
@@ -30,19 +31,27 @@ def test_retry_logic(monkeypatch):
     settings = Settings(
         courtlistener_api_key="token",
         courtlistener_retry_attempts=3,
-        courtlistener_retry_backoff=0.1
+        courtlistener_retry_backoff=0.1,
     )
     client = CourtListenerClient(settings)
 
     # Mock the inner client.request to fail twice then succeed
     response_503 = httpx.Response(503, request=httpx.Request("GET", "https://example.com"))
-    response_200 = httpx.Response(200, json={"ok": True}, request=httpx.Request("GET", "https://example.com"))
+    response_200 = httpx.Response(
+        200, json={"ok": True}, request=httpx.Request("GET", "https://example.com")
+    )
 
-    mock_request = AsyncMock(side_effect=[
-        httpx.HTTPStatusError("Server Error", request=response_503.request, response=response_503),
-        httpx.HTTPStatusError("Server Error", request=response_503.request, response=response_503),
-        response_200
-    ])
+    mock_request = AsyncMock(
+        side_effect=[
+            httpx.HTTPStatusError(
+                "Server Error", request=response_503.request, response=response_503
+            ),
+            httpx.HTTPStatusError(
+                "Server Error", request=response_503.request, response=response_503
+            ),
+            response_200,
+        ]
+    )
     client.client.request = mock_request
 
     # Mock sleep to speed up tests
@@ -52,6 +61,7 @@ def test_retry_logic(monkeypatch):
 
     assert response.status_code == 200
     assert mock_request.await_count == 3
+
 
 def test_circuit_breaker_opens(monkeypatch):
     """Circuit breaker should open after consecutive failures and short-circuit calls."""
@@ -87,6 +97,7 @@ def test_circuit_breaker_opens(monkeypatch):
     # Should have tried again
     assert failing_request.await_count == 6
 
+
 def test_partial_results_and_confidence(monkeypatch):
     """Failed requests should be reported while returning successful results."""
 
@@ -97,7 +108,9 @@ def test_partial_results_and_confidence(monkeypatch):
         def __init__(self) -> None:
             self.store: dict[tuple[CacheType, tuple[tuple[str, Any], ...]], Any] = {}
 
-        def get(self, cache_type: CacheType, key_params: dict[str, Any] | str) -> list[dict[str, Any]] | None:
+        def get(
+            self, cache_type: CacheType, key_params: dict[str, Any] | str
+        ) -> list[dict[str, Any]] | None:
             if isinstance(key_params, str):
                 key = (cache_type, ("__key__", key_params))
             else:

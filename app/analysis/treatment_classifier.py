@@ -175,6 +175,14 @@ class TreatmentClassifier:
         for s, w in POSITIVE_SIGNALS.values():
             self.signal_weights[(s, TreatmentType.POSITIVE)] = w
 
+        # For legacy compatibility or if iterative checks are restored
+        self.negative_patterns = {
+            re.compile(p, re.IGNORECASE): (s, w) for p, (s, w) in NEGATIVE_SIGNALS.items()
+        }
+        self.positive_patterns = {
+            re.compile(p, re.IGNORECASE): (s, w) for p, (s, w) in POSITIVE_SIGNALS.items()
+        }
+
     def should_fetch_full_text(
         self,
         initial_analysis: "TreatmentAnalysis",
@@ -232,7 +240,7 @@ class TreatmentClassifier:
         if re.match(r"d\d+", court_id) or "dist" in court_id:
             return 0.6
 
-        return 0.7
+        return 0.7  # State/other courts default
 
     def _map_opinion_type(self, op_type: str | None) -> str:
         """Map CourtListener opinion type to simplified category."""
@@ -244,14 +252,6 @@ class TreatmentClassifier:
         if "concurrence" in op_type or "concurring" in op_type:
             return "concurrence"
         return "majority"  # lead, combined, per_curiam, etc.
-
-    def extract_signals(
-        self, text: str, citation: str, opinion_type: str = "majority"
-    ) -> list[TreatmentSignal]:
-        """Extract treatment signals from text mentioning the citation."""
-            return 0.6  # District courts
-
-        return 0.7  # State/other courts default
 
     @functools.lru_cache(maxsize=128)
     def _get_citation_patterns(self, citation: str) -> list[re.Pattern]:
@@ -270,12 +270,15 @@ class TreatmentClassifier:
             )
         return patterns
 
-    def extract_signals(self, text: str, citation: str) -> list[TreatmentSignal]:
+    def extract_signals(
+        self, text: str, citation: str, opinion_type: str = "majority"
+    ) -> list[TreatmentSignal]:
         """Extract treatment signals from text mentioning the citation.
 
         Args:
             text: Text to analyze
             citation: The citation being analyzed
+            opinion_type: Type of opinion (majority, dissent, etc.)
 
         Returns:
             List of treatment signals found
@@ -313,6 +316,7 @@ class TreatmentClassifier:
                             opinion_type=opinion_type,
                         )
                     )
+
             # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
             for match in self.combined_signal_pattern.finditer(context):
                 group_name = match.lastgroup
@@ -331,6 +335,7 @@ class TreatmentClassifier:
                         treatment_type=treatment_type,
                         position=position,
                         context=context[:200],  # First 200 chars
+                        opinion_type=opinion_type,
                     )
                 )
 

@@ -270,7 +270,7 @@ class TreatmentClassifier:
         return "majority"  # lead, combined, per_curiam, etc.
 
     @functools.lru_cache(maxsize=128)
-    def _get_citation_patterns(self, citation: str) -> list[re.Pattern]:
+    def _get_citation_patterns(self, citation: str) -> list[re.Pattern[str]]:
         """
         Return compiled regular-expression patterns to locate mentions of a citation in text.
         
@@ -282,8 +282,6 @@ class TreatmentClassifier:
         Returns:
             list[re.Pattern]: Compiled regex patterns that match the citation and, when applicable, its well-known case name. This function's results are cached.
         """
-    def _get_citation_patterns(self, citation: str) -> list[re.Pattern[str]]:
-        """Get compiled regex patterns for a citation (cached)."""
         citation_pattern = re.escape(citation).replace(r"\ ", r"\s+")
         patterns = [
             re.compile(citation_pattern, re.IGNORECASE),
@@ -307,14 +305,6 @@ class TreatmentClassifier:
             citation (str): Citation string to locate and analyze within the text.
             opinion_type (str): Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
         
-        """Extract treatment signals from text mentioning the citation.
-
-        Args:
-            text: Text to analyze
-            citation: The citation being analyzed
-            opinion_type: Type of opinion (majority, concurrence, dissent)
-            opinion_type: Type of opinion (majority, dissent, etc.)
-
         Returns:
             signals (list[TreatmentSignal]): List of TreatmentSignal objects found; each includes the normalized signal name, inferred treatment type, position, a context excerpt, and the supplied `opinion_type`.
         """
@@ -686,12 +676,6 @@ class TreatmentClassifier:
             signal (str): Normalized signal name.
             treatment_type (TreatmentType): TreatmentType enum indicating positive or negative signal.
         
-        """Get the weight for a signal.
-
-        Args:
-            signal: Signal text
-            treatment_type: Type of treatment
-
         Returns:
             float: Weight between 0 and 1 for the signal; returns 0.5 if the signal is not found.
         """

@@ -65,7 +65,7 @@ Enable authentication in `.env`:
 ENABLE_API_KEY_AUTH=true
 
 # Define valid API keys (comma-separated)
-API_KEYS=API_KEY_EXAMPLE_DEV,API_KEY_EXAMPLE_PROD,API_KEY_EXAMPLE_SECONDARY
+API_KEYS=<YOUR_API_KEY_1>,<YOUR_API_KEY_2>,<YOUR_API_KEY_3>
 ```
 
 ### Supported Authentication Methods

@@ -210,12 +210,12 @@ class TreatmentClassifier:
     def _is_negated(self, text: str, position: int, window: int = 50) -> bool:
         """
         Determine whether a detected signal is negated by nearby preceding text.
-        
+
         Parameters:
             text (str): Full text containing the signal.
             position (int): Character index in `text` where the signal was detected.
             window (int): Number of characters before `position` to inspect for negation indicators (default 50).
-        
+
         Returns:
             bool: True if a negation indicator is found within the preceding window, False otherwise.
         """
@@ -299,60 +299,25 @@ class TreatmentClassifier:
     def extract_signals(
         self, text: str, citation: str, opinion_type: str = "majority"
     ) -> list[TreatmentSignal]:
-        """
-        Extracts treatment signals for a specific citation from the provided text.
-        
-        Parameters:
-            text (str): Text to search for mentions of the citation.
-            citation (str): Citation string to locate and analyze within the text.
-            opinion_type (str): Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
-        
         """Extract treatment signals from text mentioning the citation.
 
+        Extracts treatment signals for a specific citation from the provided text.
+
         Args:
-            text: Text to analyze
-            citation: The citation being analyzed
-            opinion_type: Type of opinion (majority, concurrence, dissent)
-            opinion_type: Type of opinion (majority, dissent, etc.)
+            text: Text to search for mentions of the citation.
+            citation: Citation string to locate and analyze within the text.
+            opinion_type: Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
 
         Returns:
-            signals (list[TreatmentSignal]): List of TreatmentSignal objects found; each includes the normalized signal name, inferred treatment type, position, a context excerpt, and the supplied `opinion_type`.
+            List of TreatmentSignal objects found; each includes the normalized signal name,
+            inferred treatment type, position, a context excerpt, and the supplied opinion_type.
         """
         signals: list[TreatmentSignal] = []
         contexts = self._extract_citation_contexts(text, citation)
 
         for context, position in contexts:
-            # Check for negative signals
-            for pattern, (signal, weight) in self.negative_patterns.items():
-                for match in pattern.finditer(context):
-                    if self._is_negated(context, match.start()):
-                        continue
-                    signals.append(
-                        TreatmentSignal(
-                            signal=signal,
-                            treatment_type=TreatmentType.NEGATIVE,
-                            position=position,
-                            context=context[:200],
-                            opinion_type=opinion_type,
-                        )
-                    )
-
-            # Check for positive signals
-            for pattern, (signal, weight) in self.positive_patterns.items():
-                for match in pattern.finditer(context):
-                    if self._is_negated(context, match.start()):
-                        continue
-                    signals.append(
-                        TreatmentSignal(
-                            signal=signal,
-                            treatment_type=TreatmentType.POSITIVE,
-                            position=position,
-                            context=context[:200],
-                            opinion_type=opinion_type,
-                        )
-                    )
-
             # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
+            # Removed redundant negative_patterns and positive_patterns loops (Bottleneck #1 fix)
             for match in self.combined_signal_pattern.finditer(context):
                 group_name = match.lastgroup
                 if not group_name:
@@ -679,21 +644,16 @@ class TreatmentClassifier:
         return TreatmentType.NEUTRAL, 0.5
 
     def _get_signal_weight(self, signal: str, treatment_type: TreatmentType) -> float:
-        """
-        Retrieve the predefined weight for a normalized treatment signal.
-        
-        Parameters:
-            signal (str): Normalized signal name.
-            treatment_type (TreatmentType): TreatmentType enum indicating positive or negative signal.
-        
         """Get the weight for a signal.
 
+        Retrieve the predefined weight for a normalized treatment signal.
+
         Args:
-            signal: Signal text
-            treatment_type: Type of treatment
+            signal: Normalized signal name.
+            treatment_type: TreatmentType enum indicating positive or negative signal.
 
         Returns:
-            float: Weight between 0 and 1 for the signal; returns 0.5 if the signal is not found.
+            Weight between 0 and 1 for the signal; returns 0.5 if the signal is not found.
         """
         # Optimized O(1) lookup
         return self.signal_weights.get((signal, treatment_type), 0.5)

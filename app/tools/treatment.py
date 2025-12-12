@@ -4,6 +4,7 @@ This module provides MCP tools for analyzing case treatment and validity,
 serving as a free alternative to Shepard's Citations and KeyCite.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, cast
@@ -129,20 +130,33 @@ async def check_case_validity_impl(
             event="citing_cases_fetched",
         )
 
+        # Parallelize initial analysis (MEDIUM Bottleneck #4 fix)
+        # Using Semaphore(5) to limit concurrent analysis from start
+        semaphore = asyncio.Semaphore(5)
+
+        async def analyze_case(case: CourtListenerCase) -> Any:
+            """Analyze case with concurrency limit."""
+            async with semaphore:
+                return classifier.classify_treatment(case, citation)
+
+        analyses = await asyncio.gather(
+            *[analyze_case(case) for case in citing_cases],
+            return_exceptions=True,
+        )
+
         initial_treatments = []
         cases_for_full_text = []
         strategy = settings.fetch_full_text_strategy
 
-        for citing_case in citing_cases:
-            analysis = classifier.classify_treatment(citing_case, citation)
+        for citing_case, analysis in zip(citing_cases, analyses):
+            if isinstance(analysis, Exception):
+                continue
             initial_treatments.append((citing_case, analysis))
 
             if classifier.should_fetch_full_text(analysis, strategy):
                 cases_for_full_text.append((citing_case, analysis))
 
         # Parallel Fetching Logic
-        import asyncio
-
         fetch_tasks: list[tuple[CourtListenerCase, TreatmentAnalysis, int]] = []
         for citing_case, initial_analysis in cases_for_full_text:
             if len(fetch_tasks) >= settings.max_full_text_fetches:
@@ -292,9 +306,25 @@ async def get_citing_cases_impl(
             return {"citation": citation, "total_found": 0, "citing_cases": []}
 
         citing_cases = _coerce_cases(raw_results)
+
+        # Parallelize classification (HIGH Bottleneck #3 fix)
+        # Using Semaphore(5) to limit concurrent analysis
+        semaphore = asyncio.Semaphore(5)
+
+        async def classify_with_limit(case: CourtListenerCase) -> Any:
+            """Classify case with concurrency limit."""
+            async with semaphore:
+                return classifier.classify_treatment(case, citation)
+
+        analyses = await asyncio.gather(
+            *[classify_with_limit(case) for case in citing_cases],
+            return_exceptions=True,
+        )
+
         treatments = []
-        for citing_case in citing_cases:
-            analysis = classifier.classify_treatment(citing_case, citation)
+        for analysis in analyses:
+            if isinstance(analysis, Exception):
+                continue
             if treatment_filter:
                 if analysis.treatment_type.value != treatment_filter.lower():
                     continue
@@ -343,10 +373,24 @@ async def treatment_timeline_impl(
 
     citing_cases = _coerce_cases(raw_results)
 
-    # 3. Analyze all cases
+    # 3. Analyze all cases in parallel (CRITICAL Bottleneck #2 fix)
+    # Using Semaphore(5) to limit concurrent analysis while respecting API rate limits
+    semaphore = asyncio.Semaphore(5)
+
+    async def analyze_with_limit(case: CourtListenerCase) -> Any:
+        """Analyze case with concurrency limit."""
+        async with semaphore:
+            return classifier.classify_treatment(case, citation)
+
+    analyses = await asyncio.gather(
+        *[analyze_with_limit(case) for case in citing_cases],
+        return_exceptions=True,
+    )
+
     treatments = []
-    for case in citing_cases:
-        analysis = classifier.classify_treatment(case, citation)
+    for analysis in analyses:
+        if isinstance(analysis, Exception):
+            continue
         if analysis.date_filed:
             treatments.append(analysis)
 

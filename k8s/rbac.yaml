@@ -1,0 +1,46 @@
+---
+# ServiceAccount for the deployment
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: legal-research
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+    app.kubernetes.io/version: "0.1.0"
+
+---
+# ClusterRole for reading metrics (optional, for Prometheus)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: legal-research-metrics-reader
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+
+---
+# ClusterRoleBinding to grant the role to the service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: legal-research-metrics-reader-binding
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: legal-research-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: legal-research
+    namespace: legal-research

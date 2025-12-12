@@ -1,0 +1,96 @@
+---
+# ServiceMonitor for Prometheus Operator
+# This tells Prometheus to scrape metrics from the legal-research-api service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: legal-research-mcp
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+    app.kubernetes.io/version: "0.1.0"
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: legal-research-mcp
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+
+---
+# PrometheusRule for alerting (requires Prometheus Operator)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: legal-research-mcp-alerts
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: legal-research-mcp
+      interval: 30s
+      rules:
+        # Alert when pod is not ready
+        - alert: LegalResearchMCPPodNotReady
+          expr: min(kube_pod_status_ready{namespace="legal-research", pod=~"legal-research-mcp-.*"}) == 0
+          for: 5m
+          labels:
+            severity: critical
+            app: legal-research-mcp
+          annotations:
+            summary: "Legal Research MCP pod is not ready"
+            description: "Pod {{ $labels.pod }} has been not ready for 5 minutes"
+
+        # Alert when too many pods are failing
+        - alert: LegalResearchMCPHighErrorRate
+          expr: rate(mcp_tool_calls_total{status="error"}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            app: legal-research-mcp
+          annotations:
+            summary: "High error rate in Legal Research MCP"
+            description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+        # Alert when response time is high
+        - alert: LegalResearchMCPHighLatency
+          expr: histogram_quantile(0.99, rate(mcp_tool_duration_seconds_bucket[5m])) > 5
+          for: 10m
+          labels:
+            severity: warning
+            app: legal-research-mcp
+          annotations:
+            summary: "High p99 latency in Legal Research MCP"
+            description: "P99 latency is {{ $value | humanizeDuration }} (threshold: 5s)"
+
+        # Alert when API key might be invalid
+        - alert: LegalResearchMCPAPIAuthError
+          expr: rate(http_requests_total{handler="verify_quote",status="401"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+            app: legal-research-mcp
+          annotations:
+            summary: "Legal Research MCP experiencing authentication errors"
+            description: "API key may be invalid or expired"
+
+        # Alert when cache hit rate is too low
+        - alert: LegalResearchMCPLowCacheHitRate
+          expr: (rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))) < 0.7
+          for: 15m
+          labels:
+            severity: info
+            app: legal-research-mcp
+          annotations:
+            summary: "Low cache hit rate in Legal Research MCP"
+            description: "Cache hit rate is {{ $value | humanizePercentage }} (target: > 70%)"

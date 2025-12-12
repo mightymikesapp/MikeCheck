@@ -1,0 +1,235 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legal-research-mcp
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/component: api
+  annotations:
+    description: "Legal Research Assistant MCP - FastAPI server deployment"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Ensure zero-downtime deployments
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: legal-research-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: legal-research-mcp
+        app.kubernetes.io/version: "0.1.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+        description: "FastAPI server for legal research tools"
+    spec:
+      # Security Context for the Pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+      # Service Account (created separately)
+      serviceAccountName: legal-research
+
+      # Pod Disruption Budget (prevent too many simultaneous shutdowns)
+      # podDisruptionBudget:
+      #   minAvailable: 2
+
+      # Init Containers
+      initContainers:
+        - name: check-api-ready
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Initializing application..."
+              mkdir -p /tmp/cache /tmp/networks
+              chmod 777 /tmp/cache /tmp/networks
+              echo "Initialization complete"
+          volumeMounts:
+            - name: cache
+              mountPath: /tmp/cache
+            - name: networks
+              mountPath: /tmp/networks
+
+      # Containers
+      containers:
+        - name: api
+          # Image - Update registry and version as needed
+          image: ghcr.io/mightymikesapp/legal-research-mcp:latest
+          imagePullPolicy: IfNotPresent
+
+          # Ports
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          # Environment Variables
+          env:
+            # Pod-specific metadata
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
+          # Environment from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: legal-research-config
+            - secretRef:
+                name: legal-research-secrets
+                optional: false
+
+          # Resources
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+
+          # Probes for health checking and readiness
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+            successThreshold: 1
+
+          # Startup Probe (important for slow-starting containers)
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12  # 60 seconds total
+
+          # Lifecycle hooks
+          lifecycle:
+            preStop:
+              exec:
+                # Give 15 seconds for connection draining
+                command:
+                  - /bin/sh
+                  - -c
+                  - sleep 15
+
+          # Security Context for the Container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+
+          # Volume Mounts
+          volumeMounts:
+            # Cache directories (ephemeral storage for this pod)
+            - name: cache
+              mountPath: /app/.cache
+            - name: networks
+              mountPath: /app/citation_networks
+            - name: chroma
+              mountPath: /app/chroma_db
+            # Temp directory (ephemeral)
+            - name: tmp
+              mountPath: /tmp
+
+      # Volumes
+      volumes:
+        # EmptyDir volumes for cache (lost on pod restart)
+        # For persistent caching, use PersistentVolumes
+        - name: cache
+          emptyDir:
+            medium: Memory  # Use memory for faster cache
+            sizeLimit: 512Mi
+        - name: networks
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: chroma
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+
+      # Pod Affinity Rules
+      affinity:
+        # Prefer spreading replicas across different nodes
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - legal-research-mcp
+                topologyKey: kubernetes.io/hostname
+
+        # Optional: Node affinity for specific node pools
+        # nodeAffinity:
+        #   requiredDuringSchedulingIgnoredDuringExecution:
+        #     nodeSelectorTerms:
+        #       - matchExpressions:
+        #           - key: node-type
+        #             operator: In
+        #             values:
+        #               - compute
+
+      # Tolerations for node taints
+      # tolerations:
+      #   - key: dedicated
+      #     operator: Equal
+      #     value: legal-research
+      #     effect: NoSchedule
+
+      # DNS Configuration
+      dnsPolicy: ClusterFirst
+
+      # Service Account automounting
+      automountServiceAccountToken: false
+
+      # Termination grace period for graceful shutdown
+      terminationGracePeriodSeconds: 45

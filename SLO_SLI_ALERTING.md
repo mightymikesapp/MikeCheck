@@ -297,7 +297,7 @@ Error Budget = (1 - 0.995) * 730 = 3.65 hours of failure allowed
 ```promql
 # Remaining error budget (%)
 100 - (
-  (rate(api_requests_total{status_code=~"5.."}[30d]) / rate(api_requests_total[30d]))
+  (increase(api_requests_total{status_code=~"5.."}[30d]) / increase(api_requests_total[30d]))
   * 100 / 0.5
 )
 ```

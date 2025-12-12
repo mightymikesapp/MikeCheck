@@ -299,24 +299,17 @@ class TreatmentClassifier:
     def extract_signals(
         self, text: str, citation: str, opinion_type: str = "majority"
     ) -> list[TreatmentSignal]:
-        """
-        Extracts treatment signals for a specific citation from the provided text.
-        
-        Parameters:
-            text (str): Text to search for mentions of the citation.
-            citation (str): Citation string to locate and analyze within the text.
-            opinion_type (str): Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
-        
-        """Extract treatment signals from text mentioning the citation.
+        """Extract treatment signals for a specific citation.
 
         Args:
-            text: Text to analyze
-            citation: The citation being analyzed
-            opinion_type: Type of opinion (majority, concurrence, dissent)
-            opinion_type: Type of opinion (majority, dissent, etc.)
+            text: Text to search for mentions of the citation.
+            citation: Citation string to locate and analyze within the text.
+            opinion_type: Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
 
         Returns:
-            signals (list[TreatmentSignal]): List of TreatmentSignal objects found; each includes the normalized signal name, inferred treatment type, position, a context excerpt, and the supplied `opinion_type`.
+            A list of :class:`TreatmentSignal` instances including the normalized signal
+            name, inferred treatment type, position, a context excerpt, and the
+            supplied ``opinion_type``.
         """
         signals: list[TreatmentSignal] = []
         contexts = self._extract_citation_contexts(text, citation)
@@ -384,8 +377,15 @@ class TreatmentClassifier:
     ) -> TreatmentAnalysis:
         """Classify how a citing case treats the target citation.
 
-        If full_text is provided, it's used as a single blob (usually for legacy compatibility).
-        Ideally, we use the structured opinions in citing_case.
+        Args:
+            citing_case: CourtListener response containing the citing opinion(s).
+            target_citation: The citation we want to analyze.
+            full_text: Optional pre-combined text of the citing case; if provided, it is
+                analyzed directly instead of the structured opinion fields.
+
+        Returns:
+            A :class:`TreatmentAnalysis` summarizing detected treatment signals and
+            derived confidence scores.
         """
         all_signals: list[TreatmentSignal] = []
         opinion_breakdown: dict[str, TreatmentType] = {}
@@ -646,10 +646,10 @@ class TreatmentClassifier:
         Determine the overall treatment type and a confidence score from a list of extracted treatment signals.
         
         Given extracted TreatmentSignal objects, the function chooses the strongest negative signal (if any) to classify the treatment as NEGATIVE, otherwise the strongest positive signal (if any) to classify as POSITIVE. If no signals are present, it returns NEUTRAL with a default confidence.
-        
+
         Parameters:
             signals (list[TreatmentSignal]): Extracted signals to aggregate.
-            court_weight (float): Multiplier (typically 0.0–1.0+) applied to the selected signal's weight to adjust confidence based on the citing court's importance.
+            court_weight (float): Multiplier (typically 0.0-1.0+) applied to the selected signal's weight to adjust confidence based on the citing court's importance.
         
         Returns:
             tuple[TreatmentType, float]: A pair of the aggregated TreatmentType and a confidence score between 0 and 1 (default 0.5 when neutral).
@@ -679,21 +679,15 @@ class TreatmentClassifier:
         return TreatmentType.NEUTRAL, 0.5
 
     def _get_signal_weight(self, signal: str, treatment_type: TreatmentType) -> float:
-        """
-        Retrieve the predefined weight for a normalized treatment signal.
-        
-        Parameters:
-            signal (str): Normalized signal name.
-            treatment_type (TreatmentType): TreatmentType enum indicating positive or negative signal.
-        
-        """Get the weight for a signal.
+        """Return the predefined weight for a normalized treatment signal.
 
         Args:
-            signal: Signal text
-            treatment_type: Type of treatment
+            signal: Normalized signal name.
+            treatment_type: TreatmentType enum indicating positive or negative signal.
 
         Returns:
-            float: Weight between 0 and 1 for the signal; returns 0.5 if the signal is not found.
+            Weight between 0 and 1 for the signal; returns 0.5 if the signal
+            is not found.
         """
         # Optimized O(1) lookup
         return self.signal_weights.get((signal, treatment_type), 0.5)
@@ -721,7 +715,8 @@ class TreatmentClassifier:
         negative_treatments: list[TreatmentAnalysis],
         context: str = "neutral",
     ) -> str:
-        """Generate human-readable summary of treatment analysis."""
+        """Generate a concise, human-readable treatment summary."""
+
         if not is_good_law:
             signals = ", ".join(
                 set(s.signal for t in negative_treatments for s in t.signals_found[:2])

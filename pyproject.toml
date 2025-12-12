@@ -43,6 +43,8 @@ dev = [
     "prometheus-client>=0.17.0",  # For testing metrics
 ]
 
+# This group is for 'uv sync --dev'. It must be kept in sync with
+# [project.optional-dependencies].dev for 'pip install .[dev]' compatibility.
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",

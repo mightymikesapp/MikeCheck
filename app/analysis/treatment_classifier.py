@@ -686,7 +686,7 @@ class TreatmentClassifier:
             treatment_type: TreatmentType enum indicating positive or negative signal.
 
         Returns:
-            float: Weight between 0 and 1 for the signal; returns 0.5 if the signal
+            Weight between 0 and 1 for the signal; returns 0.5 if the signal
             is not found.
         """
         # Optimized O(1) lookup

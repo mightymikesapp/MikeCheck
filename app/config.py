@@ -226,6 +226,7 @@ class Settings(BaseSettings):
         """Apply mode-specific defaults while preserving explicit overrides."""
         super().model_post_init(__context)
         self._apply_mode_defaults()
+        self._validate_auth_settings()
 
     def _apply_mode_defaults(self) -> None:
         """Apply preset values for the selected mode unless explicitly overridden."""
@@ -276,6 +277,19 @@ class Settings(BaseSettings):
             if field_name in self.model_fields_set:
                 continue
             setattr(self, field_name, value)
+
+    def _validate_auth_settings(self) -> None:
+        """Validate authentication configuration and fail fast on misconfiguration."""
+
+        if not self.enable_api_key_auth:
+            return
+
+        parsed_keys = [key.strip() for key in self.api_keys.split(",") if key.strip()]
+        if not parsed_keys:
+            raise ValueError(
+                "ENABLE_API_KEY_AUTH is true but API_KEYS is empty. "
+                "Provide at least one API key or disable authentication."
+            )
 
     def configure_logging(self) -> None:
         """Configure application logging."""

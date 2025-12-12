@@ -65,7 +65,7 @@ Enable authentication in `.env`:
 ENABLE_API_KEY_AUTH=true
 
 # Define valid API keys (comma-separated)
-API_KEYS=sk_test_abc123,sk_prod_xyz789,sk_test_another
+API_KEYS=<YOUR_API_KEY_1>,<YOUR_API_KEY_2>,<YOUR_API_KEY_3>
 ```
 
 ### Supported Authentication Methods
@@ -75,7 +75,7 @@ API_KEYS=sk_test_abc123,sk_prod_xyz789,sk_test_another
 Most secure method - sends key in HTTP Authorization header:
 
 ```bash
-curl -H "Authorization: Bearer sk_test_abc123" \
+curl -H "Authorization: Bearer <YOUR_API_KEY>" \
   https://api.example.com/herding/analyze \
   -d '{"citation": "410 U.S. 113"}'
 ```
@@ -85,7 +85,7 @@ curl -H "Authorization: Bearer sk_test_abc123" \
 Alternative header-based authentication:
 
 ```bash
-curl -H "X-API-Key: sk_test_abc123" \
+curl -H "X-API-Key: <YOUR_API_KEY>" \
   https://api.example.com/herding/analyze \
   -d '{"citation": "410 U.S. 113"}'
 ```
@@ -95,7 +95,7 @@ curl -H "X-API-Key: sk_test_abc123" \
 Least secure - useful for testing in browser:
 
 ```bash
-curl "https://api.example.com/herding/analyze?api_key=sk_test_abc123" \
+curl "https://api.example.com/herding/analyze?api_key=<YOUR_API_KEY>" \
   -d '{"citation": "410 U.S. 113"}'
 ```
 
@@ -140,7 +140,7 @@ In `.env`:
 
 ```bash
 # Generate secure random keys (example)
-API_KEYS=sk_test_abcdefghijklmnopqrs,sk_prod_zyxwvutsrqponmlkjih
+API_KEYS=<YOUR_API_KEY_1>,<YOUR_API_KEY_2>
 ```
 
 **Key Format Recommendations:**
@@ -249,7 +249,7 @@ Rate limits track by:
 
 **1. API Key (if authenticated):**
 ```
-api_key:sk_test_abc123
+api_key:<YOUR_API_KEY>
 ```
 
 **2. IP Address (fallback):**
@@ -287,7 +287,7 @@ Each identifier has its own quota.
 ```bash
 docker run \
   -e ENABLE_API_KEY_AUTH=true \
-  -e API_KEYS="sk_test_abc123,sk_prod_xyz789" \
+  -e API_KEYS="<YOUR_API_KEY_1>,<YOUR_API_KEY_2>" \
   -e ENABLE_RATE_LIMITING=true \
   -e RATE_LIMIT_DEFAULT=100/minute \
   -e RATE_LIMIT_TREATMENT_ANALYSIS=10/minute \
@@ -303,7 +303,7 @@ metadata:
   name: mikecheck-config
 data:
   ENABLE_API_KEY_AUTH: "true"
-  API_KEYS: "sk_test_abc123,sk_prod_xyz789"
+  API_KEYS: "<YOUR_API_KEY_1>,<YOUR_API_KEY_2>"
   ENABLE_RATE_LIMITING: "true"
   RATE_LIMIT_DEFAULT: "100/minute"
   RATE_LIMIT_TREATMENT_ANALYSIS: "5/minute"
@@ -319,7 +319,7 @@ data:
 
 ```bash
 curl -X POST \
-  -H "Authorization: Bearer sk_test_abc123" \
+  -H "Authorization: Bearer <YOUR_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"citation": "410 U.S. 113"}' \
   https://api.example.com/herding/analyze
@@ -329,7 +329,7 @@ curl -X POST \
 
 ```bash
 curl -X POST \
-  -H "X-API-Key: sk_test_abc123" \
+  -H "X-API-Key: <YOUR_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"citation": "410 U.S. 113"}' \
   https://api.example.com/herding/analyze
@@ -346,7 +346,7 @@ curl https://api.example.com/health
 ```python
 import requests
 
-API_KEY = "sk_test_abc123"
+API_KEY = "<YOUR_API_KEY>"
 BASE_URL = "https://api.example.com"
 
 # Method 1: Authorization header
@@ -375,7 +375,7 @@ else:
 ### JavaScript Example
 
 ```javascript
-const API_KEY = "sk_test_abc123";
+const API_KEY = "<YOUR_API_KEY>";
 const BASE_URL = "https://api.example.com";
 
 // Using Authorization header
@@ -507,7 +507,7 @@ sum(rate(http_requests_total{status_code=~"^2..$"}[5m])) \
 rate(rate_limit_exceeded_total{endpoint="/herding/analyze"}[5m])
 
 # By API key
-rate(rate_limit_exceeded_total{api_key="sk_test_abc123"}[5m])
+rate(rate_limit_exceeded_total{api_key="<YOUR_API_KEY>"}[5m])
 ```
 
 ### Common Issues
@@ -518,7 +518,7 @@ rate(rate_limit_exceeded_total{api_key="sk_test_abc123"}[5m])
 
 **Solution:**
 1. Check if `ENABLE_API_KEY_AUTH=true` in deployment
-2. Add key to request headers: `Authorization: Bearer sk_test_xxx`
+2. Add key to request headers: `Authorization: Bearer <YOUR_API_KEY>`
 3. Verify key is in `API_KEYS` list
 
 #### 403: Invalid API Key

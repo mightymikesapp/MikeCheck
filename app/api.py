@@ -7,6 +7,7 @@ import asyncio
 import logging
 import signal
 import sys
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Awaitable, Callable, AsyncGenerator, List, Optional
 
@@ -20,6 +21,7 @@ from pydantic import BaseModel
 
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
 from app.config import settings
+from app.metrics import initialize_metrics, get_metrics_response, record_api_request, record_api_error
 from app.tools.research import issue_map_impl, run_research_pipeline_impl
 from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
@@ -60,6 +62,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # STARTUP
     logger.info("Application startup initiated", extra={"event": "startup_start"})
+
+    # Initialize Prometheus metrics
+    initialize_metrics()
+    logger.info("Prometheus metrics initialized", extra={"event": "metrics_init"})
 
     # Initialize shutdown event for signal handling
     _shutdown_event = asyncio.Event()
@@ -128,6 +134,44 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def metrics_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Record metrics for HTTP requests (latency, status codes, errors)."""
+    start_time = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+        duration = time.perf_counter() - start_time
+
+        # Record successful request
+        record_api_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status_code=response.status_code,
+            duration_seconds=duration,
+        )
+
+        return response
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+
+        # Record error
+        error_type = type(e).__name__
+        record_api_error(
+            method=request.method,
+            endpoint=request.url.path,
+            error_type=error_type,
+        )
+
+        logger.error(
+            f"Request error: {error_type}",
+            extra={"event": "request_error", "error_type": error_type},
+        )
+        raise
+
+
+@app.middleware("http")
 async def add_security_headers(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
@@ -186,6 +230,17 @@ class ResearchRequest(BaseModel):
 async def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "healthy", "service": "MikeCheck API"}
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    """Prometheus metrics endpoint.
+
+    Returns metrics in Prometheus text format.
+    Metrics are automatically collected by middleware and tools.
+    """
+    metrics_bytes, content_type = get_metrics_response()
+    return Response(content=metrics_bytes, media_type=content_type)
 
 
 @app.get("/", response_class=HTMLResponse)

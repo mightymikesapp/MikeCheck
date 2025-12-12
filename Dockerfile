@@ -13,7 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager for faster, more reliable builds
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN set -euo pipefail; \
+    INSTALLER_PATH="/tmp/uv-install.sh"; \
+    curl -LsSf https://astral.sh/uv/install.sh -o "$INSTALLER_PATH"; \
+    sh "$INSTALLER_PATH"; \
+    rm "$INSTALLER_PATH"
 ENV PATH="/root/.cargo/bin:$PATH"
 
 # Copy dependency files

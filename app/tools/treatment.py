@@ -30,13 +30,13 @@ async def _classify_parallel(
     cases: list[CourtListenerCase],
     citation: str,
     concurrency: int = 5,
-) -> list[Any]:
+) -> list[Union[TreatmentAnalysis, Exception]]:
     """Classify cases using a threadpool while limiting concurrency."""
 
     loop = asyncio.get_running_loop()
     semaphore = asyncio.Semaphore(concurrency)
 
-    async def classify(case: CourtListenerCase) -> Any:
+    async def classify(case: CourtListenerCase) -> TreatmentAnalysis:
         async with semaphore:
             return await loop.run_in_executor(
                 None, classifier.classify_treatment, case, citation

@@ -182,6 +182,38 @@ class Settings(BaseSettings):
         description="Content Security Policy directive",
     )
 
+    # Authentication configuration
+    enable_api_key_auth: bool = Field(
+        default=False,
+        description="Enable API key authentication for all protected endpoints",
+    )
+    api_keys: str = Field(
+        default="",
+        description="Comma-separated list of valid API keys (empty = disabled)",
+    )
+
+    # Rate limiting configuration
+    enable_rate_limiting: bool = Field(
+        default=True,
+        description="Enable rate limiting for API endpoints",
+    )
+    rate_limit_default: str = Field(
+        default="100/minute",
+        description="Default rate limit for all endpoints (e.g., '100/minute', '10/hour')",
+    )
+    rate_limit_treatment_analysis: str = Field(
+        default="5/minute",
+        description="Rate limit for treatment analysis endpoints",
+    )
+    rate_limit_bulk_operations: str = Field(
+        default="2/minute",
+        description="Rate limit for bulk operation endpoints",
+    )
+    rate_limit_semantic_search: str = Field(
+        default="20/minute",
+        description="Rate limit for semantic search endpoints",
+    )
+
     def model_post_init(self, __context: Any) -> None:
         """Apply mode-specific defaults while preserving explicit overrides."""
         super().model_post_init(__context)

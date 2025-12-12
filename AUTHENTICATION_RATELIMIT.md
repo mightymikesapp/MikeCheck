@@ -375,7 +375,7 @@ else:
 ### JavaScript Example
 
 ```javascript
-const API_KEY = "API_KEY_EXAMPLE_DEV";
+const API_KEY = "<YOUR_API_KEY>";
 const BASE_URL = "https://api.example.com";
 
 // Using Authorization header

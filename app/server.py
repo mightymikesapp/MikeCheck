@@ -25,7 +25,11 @@ from app.tools.cache_tools import cache_server
 from app.tools.network import network_server
 from app.tools.research import research_server
 from app.tools.search import search_server
-from app.tools.treatment import treatment_server
+from app.tools.treatment import (
+    shutdown_classification_executor,
+    start_classification_executor,
+    treatment_server,
+)
 from app.tools.verification import verification_server
 
 # Configure logging
@@ -161,6 +165,7 @@ async def main() -> None:
 
     # Perform server setup
     await setup()
+    await start_classification_executor()
 
     try:
         # Run with stdio transport (default for MCP servers)
@@ -171,6 +176,8 @@ async def main() -> None:
     except Exception as e:
         logger.error(f"Failed to start server: {e}")
         raise
+    finally:
+        await shutdown_classification_executor()
 
 
 def cli() -> None:

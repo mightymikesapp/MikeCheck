@@ -113,6 +113,10 @@ class Settings(BaseSettings):
         default=0.7,
         description="Minimum confidence threshold for validity assessments",
     )
+    treatment_classifier_workers: int = Field(
+        default=5,
+        description="Number of process pool workers for treatment classification",
+    )
     max_citing_cases: int = Field(
         default=100,
         description="Maximum number of citing cases to analyze",

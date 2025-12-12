@@ -56,10 +56,11 @@ def mock_citation_network_builder(mocker):
     instance.get_network_statistics.return_value = {
         "total_nodes": 10,
         "total_edges": 15,
-        "treatment_distribution": {"overruled": 1}
+        "treatment_distribution": {"overruled": 1},
     }
 
     return instance
+
 
 @pytest.fixture
 def mock_mermaid_generator(mocker):
@@ -73,6 +74,7 @@ def mock_mermaid_generator(mocker):
     instance.generate_graphml.return_value = "<graphml />"
     instance.generate_json_graph.return_value = {"nodes": [], "edges": [], "root": "410 U.S. 113"}
     return instance
+
 
 @pytest.fixture
 def mock_classifier(mocker):
@@ -94,8 +96,11 @@ def mock_classifier(mocker):
     instance.classify_treatment.return_value = mock_analysis
     return instance
 
+
 @pytest.mark.asyncio
-async def test_basic_visualization(mock_client, mock_citation_network_builder, mock_mermaid_generator, mock_classifier):
+async def test_basic_visualization(
+    mock_client, mock_citation_network_builder, mock_mermaid_generator, mock_classifier
+):
     """Test basic Mermaid diagram generation."""
 
     # We need to mock the classifier because build_citation_network_impl instantiates it
@@ -118,8 +123,11 @@ async def test_basic_visualization(mock_client, mock_citation_network_builder, m
     mock_citation_network_builder.build_network.assert_called()
     mock_mermaid_generator.generate_flowchart.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_timeline_visualization(mock_client, mock_citation_network_builder, mock_mermaid_generator, mock_classifier):
+async def test_timeline_visualization(
+    mock_client, mock_citation_network_builder, mock_mermaid_generator, mock_classifier
+):
     """Test timeline diagram generation."""
 
     result = await visualize_citation_network_impl(
@@ -132,8 +140,11 @@ async def test_timeline_visualization(mock_client, mock_citation_network_builder
 
     mock_mermaid_generator.generate_timeline.assert_called()
 
+
 @pytest.mark.asyncio
-async def test_full_report(mock_client, mock_citation_network_builder, mock_mermaid_generator, mock_classifier):
+async def test_full_report(
+    mock_client, mock_citation_network_builder, mock_mermaid_generator, mock_classifier
+):
     """Test comprehensive citation report generation."""
 
     result = await generate_citation_report_impl(

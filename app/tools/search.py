@@ -140,11 +140,7 @@ async def semantic_search_impl(query: str, limit: int = 10) -> dict[str, Any]:
     existing_ids: set[str] = set()
     if isinstance(existing_records, Mapping):
         record_ids = existing_records.get("ids")
-        if (
-            isinstance(record_ids, list)
-            and record_ids
-            and isinstance(record_ids[0], list)
-        ):
+        if isinstance(record_ids, list) and record_ids and isinstance(record_ids[0], list):
             existing_ids = {str(value) for value in record_ids[0] if value is not None}
 
     cases_to_fetch = []
@@ -256,8 +252,8 @@ async def semantic_search_impl(query: str, limit: int = 10) -> dict[str, Any]:
             "candidates_found": len(candidates),
             "full_texts_fetched": full_text_fetches,
             "indexed_count": len(documents),
-            "total_library_size": vector_store.count()
-        }
+            "total_library_size": vector_store.count(),
+        },
     }
 
 

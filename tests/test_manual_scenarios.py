@@ -21,6 +21,7 @@ async def test_well_known_case(mock_client):
     assert result["citation"] == "410 U.S. 113"
     assert "is_good_law" in result
 
+
 @pytest.mark.asyncio
 async def test_recent_case(mock_client):
     """Test getting citing cases."""
@@ -29,6 +30,7 @@ async def test_recent_case(mock_client):
     assert "citation" in result
     assert "citing_cases" in result
     assert len(result["citing_cases"]) > 0
+
 
 @pytest.mark.asyncio
 async def test_negative_filter(mock_client, mocker):

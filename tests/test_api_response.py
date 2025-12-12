@@ -1,6 +1,5 @@
 """Tests for API response structure."""
 
-
 import pytest
 
 

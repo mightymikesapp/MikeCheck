@@ -1,19 +1,20 @@
 """Unit tests for citation network tools."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-from app.tools.network import (
-    build_citation_network_impl,
-    filter_citation_network_impl,
-    get_network_statistics_impl,
-    visualize_citation_network_impl,
-    export_citation_network_impl,
-    generate_citation_report_impl,
-)
+import pytest
+
 from app.analysis.treatment_classifier import TreatmentType
 from app.config import settings
 from app.errors import job_too_large_error
+from app.tools.network import (
+    build_citation_network_impl,
+    export_citation_network_impl,
+    filter_citation_network_impl,
+    generate_citation_report_impl,
+    get_network_statistics_impl,
+    visualize_citation_network_impl,
+)
 
 
 # Test build_citation_network_impl
@@ -29,9 +30,7 @@ async def test_build_citation_network_impl_case_not_found(mock_client):
 
 
 @pytest.mark.unit
-async def test_build_citation_network_impl_respects_max_nodes(
-    mock_client, monkeypatch
-):
+async def test_build_citation_network_impl_respects_max_nodes(mock_client, monkeypatch):
     """Return standardized error when requested nodes exceed limit."""
 
     monkeypatch.setattr(settings, "max_total_network_nodes", 1)
@@ -135,10 +134,7 @@ async def test_build_citation_network_impl_with_citing_cases(mock_client, mocker
     mock_classifier_instance.classify_treatment.return_value = mock_treatment
 
     result = await build_citation_network_impl(
-        "123 U.S. 456",
-        max_depth=1,
-        max_nodes=100,
-        include_treatments=True
+        "123 U.S. 456", max_depth=1, max_nodes=100, include_treatments=True
     )
 
     assert result["root_citation"] == "123 U.S. 456"
@@ -178,10 +174,7 @@ async def test_build_citation_network_impl_without_treatments(mock_client):
     }
 
     result = await build_citation_network_impl(
-        "123 U.S. 456",
-        max_depth=1,
-        max_nodes=100,
-        include_treatments=False
+        "123 U.S. 456", max_depth=1, max_nodes=100, include_treatments=False
     )
 
     assert result["root_citation"] == "123 U.S. 456"
@@ -251,15 +244,9 @@ async def test_filter_citation_network_impl_by_treatment(mock_client, mocker):
         },
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
-    result = await filter_citation_network_impl(
-        "123 U.S. 456",
-        treatments=["negative"]
-    )
+    result = await filter_citation_network_impl("123 U.S. 456", treatments=["negative"])
 
     assert result["root_citation"] == "123 U.S. 456"
     assert len(result["edges"]) == 1
@@ -326,15 +313,9 @@ async def test_filter_citation_network_impl_by_confidence(mock_client, mocker):
         },
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
-    result = await filter_citation_network_impl(
-        "123 U.S. 456",
-        min_confidence=0.8
-    )
+    result = await filter_citation_network_impl("123 U.S. 456", min_confidence=0.8)
 
     assert len(result["edges"]) == 1
     assert result["edges"][0]["confidence"] >= 0.8
@@ -399,15 +380,9 @@ async def test_filter_citation_network_impl_by_date(mock_client, mocker):
         },
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
-    result = await filter_citation_network_impl(
-        "123 U.S. 456",
-        date_after="2000-01-01"
-    )
+    result = await filter_citation_network_impl("123 U.S. 456", date_after="2000-01-01")
 
     assert len(result["edges"]) == 1
     # Find the node for the remaining edge
@@ -456,15 +431,9 @@ async def test_get_network_statistics_impl_basic(mock_client, mocker):
         },
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
-    result = await get_network_statistics_impl(
-        "123 U.S. 456",
-        enable_advanced_metrics=False
-    )
+    result = await get_network_statistics_impl("123 U.S. 456", enable_advanced_metrics=False)
 
     assert result["citation"] == "123 U.S. 456"
     assert result["citation_count"] == 2
@@ -506,15 +475,10 @@ async def test_get_network_statistics_impl_with_advanced_metrics(mock_client, mo
         },
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     result = await get_network_statistics_impl(
-        "123 U.S. 456",
-        enable_advanced_metrics=True,
-        enable_community_detection=True
+        "123 U.S. 456", enable_advanced_metrics=True, enable_community_detection=True
     )
 
     assert "graph_metrics" in result
@@ -533,20 +497,14 @@ async def test_visualize_citation_network_impl_flowchart(mock_client, mocker):
         "edges": [],
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     mock_generator = mocker.patch("app.tools.network.MermaidGenerator")
     mock_generator_instance = mock_generator.return_value
     mock_generator_instance.generate_flowchart.return_value = "flowchart TB"
     mock_generator_instance.generate_summary_stats.return_value = "Summary"
 
-    result = await visualize_citation_network_impl(
-        "123 U.S. 456",
-        diagram_type="flowchart"
-    )
+    result = await visualize_citation_network_impl("123 U.S. 456", diagram_type="flowchart")
 
     assert result["citation"] == "123 U.S. 456"
     assert "mermaid_syntax" in result
@@ -564,10 +522,7 @@ async def test_visualize_citation_network_impl_all_diagrams(mock_client, mocker)
         "edges": [],
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     mock_generator = mocker.patch("app.tools.network.MermaidGenerator")
     mock_generator_instance = mock_generator.return_value
@@ -577,10 +532,7 @@ async def test_visualize_citation_network_impl_all_diagrams(mock_client, mocker)
     mock_generator_instance.generate_timeline.return_value = "timeline"
     mock_generator_instance.generate_summary_stats.return_value = "Summary"
 
-    result = await visualize_citation_network_impl(
-        "123 U.S. 456",
-        diagram_type="all"
-    )
+    result = await visualize_citation_network_impl("123 U.S. 456", diagram_type="all")
 
     assert result["all_diagrams"] is not None
     assert "flowchart" in result["all_diagrams"]
@@ -600,10 +552,7 @@ async def test_export_citation_network_impl_graphml(mock_client, mocker):
         "edges": [],
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     mock_generator = mocker.patch("app.tools.network.MermaidGenerator")
     mock_generator_instance = mock_generator.return_value
@@ -626,10 +575,7 @@ async def test_export_citation_network_impl_json(mock_client, mocker):
         "edges": [],
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     mock_generator = mocker.patch("app.tools.network.MermaidGenerator")
     mock_generator_instance = mock_generator.return_value
@@ -651,10 +597,7 @@ async def test_export_citation_network_impl_unsupported_format(mock_client, mock
         "edges": [],
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     result = await export_citation_network_impl("123 U.S. 456", format="invalid")
 
@@ -685,19 +628,14 @@ async def test_generate_citation_report_impl_full(mock_client, mocker):
         },
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     mock_generator = mocker.patch("app.tools.network.MermaidGenerator")
     mock_generator_instance = mock_generator.return_value
     mock_generator_instance.generate_flowchart.return_value = "flowchart TB"
 
     result = await generate_citation_report_impl(
-        "123 U.S. 456",
-        include_diagram=True,
-        include_statistics=True
+        "123 U.S. 456", include_diagram=True, include_statistics=True
     )
 
     assert result["citation"] == "123 U.S. 456"
@@ -719,15 +657,10 @@ async def test_generate_citation_report_impl_minimal(mock_client, mocker):
         "statistics": {"total_nodes": 1, "total_edges": 0},
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     result = await generate_citation_report_impl(
-        "123 U.S. 456",
-        include_diagram=False,
-        include_statistics=False
+        "123 U.S. 456", include_diagram=False, include_statistics=False
     )
 
     assert result["citation"] == "123 U.S. 456"
@@ -762,16 +695,13 @@ async def test_generate_citation_report_impl_with_treatment_focus(mock_client, m
         },
     }
 
-    mocker.patch(
-        "app.tools.network.build_citation_network_impl",
-        return_value=mock_network
-    )
+    mocker.patch("app.tools.network.build_citation_network_impl", return_value=mock_network)
 
     result = await generate_citation_report_impl(
         "123 U.S. 456",
         include_diagram=False,
         include_statistics=False,
-        treatment_focus=["overruled"]
+        treatment_focus=["overruled"],
     )
 
     assert "Key Cases" in result["markdown_report"]

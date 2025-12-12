@@ -80,13 +80,19 @@ def configure_logging(log_level: str, log_format: str, date_format: str | None =
     root_logger.handlers = [handler]
 
 
-def _bind_context(tool_name: str, call_signature: Signature, args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[Token[Any], Token[Any]]:
+def _bind_context(
+    tool_name: str, call_signature: Signature, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[Token[Any], Token[Any]]:
     correlation_token = correlation_id_ctx.set(str(uuid.uuid4()))
 
     bound = call_signature.bind_partial(*args, **kwargs)
     bound.apply_defaults()
 
-    citation = bound.arguments.get("citation") or bound.arguments.get("citation_id") or bound.arguments.get("citation_text")
+    citation = (
+        bound.arguments.get("citation")
+        or bound.arguments.get("citation_id")
+        or bound.arguments.get("citation_text")
+    )
     metadata: dict[str, Any] = {"tool_name": tool_name}
     if citation is not None:
         metadata["citation"] = citation
@@ -98,7 +104,9 @@ def _bind_context(tool_name: str, call_signature: Signature, args: tuple[Any, ..
     return correlation_token, metadata_token
 
 
-def tool_logging(tool_name: str) -> Callable[[Callable[P, object]], Callable[P, object | Awaitable[object]]]:
+def tool_logging(
+    tool_name: str,
+) -> Callable[[Callable[P, object]], Callable[P, object | Awaitable[object]]]:
     """Decorator to add correlation IDs and structured entry/exit logging for MCP tools."""
 
     def decorator(func: Callable[P, object]) -> Callable[P, object | Awaitable[object]]:
@@ -110,13 +118,17 @@ def tool_logging(tool_name: str) -> Callable[[Callable[P, object]], Callable[P, 
 
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> object:
-                correlation_token, metadata_token = _bind_context(tool_name, call_signature, args, kwargs)
+                correlation_token, metadata_token = _bind_context(
+                    tool_name, call_signature, args, kwargs
+                )
                 start = time.perf_counter()
                 logger.info("Tool call started", extra={"event": "tool_start"})
                 try:
                     result = await async_func(*args, **kwargs)
                     elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
-                    logger.info("Tool call completed", extra={"event": "tool_end", "elapsed_ms": elapsed_ms})
+                    logger.info(
+                        "Tool call completed", extra={"event": "tool_end", "elapsed_ms": elapsed_ms}
+                    )
                     return result
                 except Exception:
                     elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
@@ -135,13 +147,17 @@ def tool_logging(tool_name: str) -> Callable[[Callable[P, object]], Callable[P, 
 
         @wraps(func)
         def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> object:
-            correlation_token, metadata_token = _bind_context(tool_name, call_signature, args, kwargs)
+            correlation_token, metadata_token = _bind_context(
+                tool_name, call_signature, args, kwargs
+            )
             start = time.perf_counter()
             logger.info("Tool call started", extra={"event": "tool_start"})
             try:
                 result = sync_func(*args, **kwargs)
                 elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
-                logger.info("Tool call completed", extra={"event": "tool_end", "elapsed_ms": elapsed_ms})
+                logger.info(
+                    "Tool call completed", extra={"event": "tool_end", "elapsed_ms": elapsed_ms}
+                )
                 return result
             except Exception:
                 elapsed_ms = round((time.perf_counter() - start) * 1000, 2)

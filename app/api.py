@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
-from app.tools.research import run_research_pipeline_impl, issue_map_impl
+from app.tools.research import issue_map_impl, run_research_pipeline_impl
 from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
 
@@ -42,13 +42,16 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+async def add_security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """Add security headers to all responses."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
 
 # Setup Templates
 templates = Jinja2Templates(directory="app/templates")
@@ -81,9 +84,7 @@ async def home(request: Request) -> HTMLResponse:
 
 
 @app.post("/analyze/upload")
-async def upload_document(
-    request: Request, file: UploadFile = File(...)
-) -> Any:
+async def upload_document(request: Request, file: UploadFile = File(...)) -> Any:
     """Handle document upload and parsing."""
     try:
         content = await file.read()
@@ -98,9 +99,7 @@ async def upload_document(
             text = content.decode("utf-8", errors="ignore")
 
         if not text:
-            raise HTTPException(
-                status_code=400, detail="Could not extract text from file"
-            )
+            raise HTTPException(status_code=400, detail="Could not extract text from file")
 
         citations = sorted(extract_citations(text))
 
@@ -175,9 +174,7 @@ async def find_similar(request: SearchRequest) -> dict[str, Any]:
 async def run_research(request: ResearchRequest) -> dict[str, Any]:
     """Run comprehensive research pipeline."""
     try:
-        result = await run_research_pipeline_impl(
-            request.citations, request.key_questions
-        )
+        result = await run_research_pipeline_impl(request.citations, request.key_questions)
         return result
     except Exception as e:
         logger.error(f"Research failed: {e}")
@@ -186,17 +183,14 @@ async def run_research(request: ResearchRequest) -> dict[str, Any]:
 
 @app.post("/research/issue_map_html")
 async def get_issue_map_html(
-    request: Request,
-    primary_case: str = Form(...),
-    key_questions: Optional[str] = Form(None)
+    request: Request, primary_case: str = Form(...), key_questions: Optional[str] = Form(None)
 ) -> Any:
     """Generate issue map and return HTML."""
     try:
         questions_list = [q.strip() for q in key_questions.split("\n")] if key_questions else None
         result = await issue_map_impl(primary_case=primary_case, key_questions=questions_list)
         return templates.TemplateResponse(
-            "partials/issue_map_results.html",
-            {"request": request, "result": result}
+            "partials/issue_map_results.html", {"request": request, "result": result}
         )
     except Exception as e:
         logger.error(f"Issue map failed: {e}")
@@ -206,9 +200,7 @@ async def get_issue_map_html(
 
 
 @app.post("/herding/details_html")
-async def analyze_citation_details(
-    request: Request, citation: str = Form(...)
-) -> Any:
+async def analyze_citation_details(request: Request, citation: str = Form(...)) -> Any:
     """Get detailed treatment analysis for modal."""
     try:
         # Re-run or get cached analysis
@@ -225,9 +217,7 @@ async def analyze_citation_details(
 
 
 @app.post("/search/similar_html")
-async def find_similar_html(
-    request: Request, query: str = Form(...)
-) -> Any:
+async def find_similar_html(request: Request, query: str = Form(...)) -> Any:
     """Find similar cases returning HTML."""
     try:
         # Use semantic search

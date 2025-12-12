@@ -68,11 +68,7 @@ def cache_clear_impl(type: str | None = None) -> dict[str, Any]:
         extra_context={"count": count, "target": type},
     )
 
-    return {
-        "status": "success",
-        "message": message,
-        "files_cleared": count
-    }
+    return {"status": "success", "message": message, "files_cleared": count}
 
 
 # MCP tool wrappers

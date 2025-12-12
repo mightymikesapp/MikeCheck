@@ -136,14 +136,20 @@ class CitationNetworkBuilder:
 
             # Get treatment info if available
             treatment_info: dict[str, object] | None = treatment_map.get(citing_citation)
-            treatment_raw = treatment_info.get("treatment") if isinstance(treatment_info, dict) else None
+            treatment_raw = (
+                treatment_info.get("treatment") if isinstance(treatment_info, dict) else None
+            )
             confidence_value = (
                 treatment_info.get("confidence") if isinstance(treatment_info, dict) else None
             )
-            excerpt_value = treatment_info.get("excerpt") if isinstance(treatment_info, dict) else None
+            excerpt_value = (
+                treatment_info.get("excerpt") if isinstance(treatment_info, dict) else None
+            )
 
             treatment_str = str(treatment_raw) if isinstance(treatment_raw, str) else None
-            confidence = float(confidence_value) if isinstance(confidence_value, (int, float)) else 0.0
+            confidence = (
+                float(confidence_value) if isinstance(confidence_value, (int, float)) else 0.0
+            )
             excerpt = excerpt_value if isinstance(excerpt_value, str) else ""
 
             # Create edge from citing case to root case

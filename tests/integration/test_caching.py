@@ -113,10 +113,7 @@ def test_concurrent_cache_access():
             results.append((thread_id, result))
 
         # Create threads
-        threads = [
-            Thread(target=write_and_read, args=(managers[i], i))
-            for i in range(3)
-        ]
+        threads = [Thread(target=write_and_read, args=(managers[i], i)) for i in range(3)]
 
         # Run threads
         for t in threads:
@@ -130,6 +127,7 @@ def test_concurrent_cache_access():
 
         # Cleanup
         import shutil
+
         shutil.rmtree(cache_dir, ignore_errors=True)
 
 

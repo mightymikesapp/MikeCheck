@@ -53,10 +53,7 @@ def mock_client(mocker):
     client_mock.get_opinion_full_text.return_value = "This case affirms the essential holding of Roe. The right of privacy is broad enough to encompass a woman's decision."
 
     # Mock search_opinions
-    client_mock.search_opinions.return_value = {
-        "count": 1,
-        "results": [roe_case]
-    }
+    client_mock.search_opinions.return_value = {"count": 1, "results": [roe_case]}
 
     # Mock get_opinion
     client_mock.get_opinion.return_value = {
@@ -104,8 +101,6 @@ def pytest_pycollect_makeitem(collector: pytest.Collector, name: str, obj: objec
     if inspect.iscoroutinefunction(obj) and name.startswith("test"):
         return [Function.from_parent(collector, name=name, callobj=obj)]
     return None
-
-
 
 
 def pytest_collection_modifyitems(config, items):

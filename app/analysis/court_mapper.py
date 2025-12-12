@@ -11,11 +11,13 @@ from enum import Enum
 
 class CourtLevel(str, Enum):
     """Hierarchical levels of US courts."""
+
     SCOTUS = "scotus"
     CIRCUIT = "circuit"
     DISTRICT = "district"
     STATE = "state"
     UNKNOWN = "unknown"
+
 
 def get_court_level(court_id: str | None) -> CourtLevel:
     """Map a court ID string to a simplified hierarchy level.
@@ -45,9 +47,15 @@ def get_court_level(court_id: str | None) -> CourtLevel:
     # Common pattern: ?d?? (e.g. ndca) or d?? (e.g. dcd)
     # Also includes territorial district courts
     if (
-        re.match(r"^[nswem]?d[a-z]{2}$", court) or  # ndca, sdny, edva, wdwa, mdfl
-        re.match(r"^d[a-z]{2}$", court) or          # dcd, dma, dnv
-        court in {"dct", "jpml", "cit", "uscfc"}    # Special federal courts often grouped with district level
+        re.match(r"^[nswem]?d[a-z]{2}$", court)  # ndca, sdny, edva, wdwa, mdfl
+        or re.match(r"^d[a-z]{2}$", court)  # dcd, dma, dnv
+        or court
+        in {
+            "dct",
+            "jpml",
+            "cit",
+            "uscfc",
+        }  # Special federal courts often grouped with district level
     ):
         return CourtLevel.DISTRICT
 

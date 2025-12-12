@@ -330,6 +330,7 @@ def test_verify_quote_fuzzy_match_high_similarity(matcher):
     assert result.exact_match is False
     assert result.similarity >= 0.9
 
+
 @pytest.mark.unit
 def test_verify_quote_fuzzy_match_low_similarity(matcher):
     """Test verification with low-similarity fuzzy match."""

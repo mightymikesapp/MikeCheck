@@ -56,7 +56,7 @@ def test_coerce_warnings_with_dicts():
     """Test coercing warnings from list of dicts."""
     raw = [
         {"signal": "overruled", "case_name": "Test Case"},
-        {"signal": "questioned", "case_name": "Another Case"}
+        {"signal": "questioned", "case_name": "Another Case"},
     ]
     result = _coerce_warnings(raw)
     assert len(result) == 2
@@ -66,11 +66,7 @@ def test_coerce_warnings_with_dicts():
 @pytest.mark.unit
 def test_coerce_warnings_with_mixed_types():
     """Test coercing warnings with mixed string and dict entries."""
-    raw = [
-        "simple warning",
-        {"signal": "overruled", "case_name": "Test Case"},
-        "another warning"
-    ]
+    raw = ["simple warning", {"signal": "overruled", "case_name": "Test Case"}, "another warning"]
     result = _coerce_warnings(raw)
     assert len(result) == 3
     assert isinstance(result[0], str)
@@ -111,7 +107,7 @@ def test_coerce_cases_with_valid_dicts():
     """Test coercing cases from list of dicts."""
     raw = [
         {"caseName": "Case 1", "citation": ["123 U.S. 456"]},
-        {"caseName": "Case 2", "citation": ["789 U.S. 012"]}
+        {"caseName": "Case 2", "citation": ["789 U.S. 012"]},
     ]
     result = _coerce_cases(raw)
     assert len(result) == 2
@@ -121,13 +117,7 @@ def test_coerce_cases_with_valid_dicts():
 @pytest.mark.unit
 def test_coerce_cases_filters_non_dicts():
     """Test coercing cases filters out non-dict entries."""
-    raw = [
-        {"caseName": "Case 1"},
-        "invalid",
-        None,
-        123,
-        {"caseName": "Case 2"}
-    ]
+    raw = [{"caseName": "Case 1"}, "invalid", None, 123, {"caseName": "Case 2"}]
     result = _coerce_cases(raw)
     assert len(result) == 2
     assert all(isinstance(case, dict) for case in result)
@@ -455,7 +445,7 @@ async def test_get_citing_cases_impl_with_filter(mock_client, mocker):
     mock_classifier = mocker.patch("app.tools.treatment.classifier")
     mock_classifier.classify_treatment.side_effect = [
         mock_positive_treatment,
-        mock_negative_treatment
+        mock_negative_treatment,
     ]
 
     # Filter for negative only

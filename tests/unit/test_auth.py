@@ -44,6 +44,7 @@ def make_request(query: str | None = None, headers: dict[str, str] | None = None
     return Request(scope)  # type: ignore[arg-type]
 
 
+@pytest.mark.unit
 @pytest.mark.asyncio
 async def test_verify_api_key_allows_query_when_enabled() -> None:
     settings.enable_api_key_auth = True
@@ -58,6 +59,7 @@ async def test_verify_api_key_allows_query_when_enabled() -> None:
     assert api_key == "token123"
 
 
+@pytest.mark.unit
 @pytest.mark.asyncio
 async def test_verify_api_key_ignores_query_when_disabled(caplog: pytest.LogCaptureFixture) -> None:
     settings.enable_api_key_auth = True

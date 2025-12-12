@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
+from app.config import settings
 from app.tools.research import issue_map_impl, run_research_pipeline_impl
 from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
@@ -29,15 +30,17 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Configure CORS
-# Restrict origins to prevent CSRF/unauthorized access from malicious sites
-# Since this is a local tool, we only allow localhost access by default
+# Configure CORS from settings (environment-configurable)
+cors_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
+cors_methods = [method.strip() for method in settings.cors_methods.split(",")]
+cors_headers = [header.strip() for header in settings.cors_headers.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins,
+    allow_credentials=settings.cors_credentials,
+    allow_methods=cors_methods,
+    allow_headers=cors_headers,
 )
 
 
@@ -45,11 +48,36 @@ app.add_middleware(
 async def add_security_headers(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
-    """Add security headers to all responses."""
+    """Add comprehensive security headers to all responses."""
     response = await call_next(request)
+
+    # Prevent MIME type sniffing
     response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Prevent clickjacking
     response.headers["X-Frame-Options"] = "DENY"
+
+    # Referrer policy
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Prevent XSS attacks
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+
+    # Content Security Policy
+    if settings.enable_csp:
+        response.headers["Content-Security-Policy"] = settings.csp_policy
+
+    # HSTS (HTTP Strict Transport Security) - production only
+    if settings.enable_hsts:
+        response.headers["Strict-Transport-Security"] = (
+            f"max-age={settings.hsts_max_age}; includeSubDomains; preload"
+        )
+
+    # Permissions Policy (formerly Feature-Policy)
+    response.headers["Permissions-Policy"] = (
+        "accelerometer=(), camera=(), microphone=(), payment=(), usb=()"
+    )
+
     return response
 
 

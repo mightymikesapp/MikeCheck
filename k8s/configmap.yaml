@@ -58,5 +58,18 @@ data:
   # MCP Server Configuration (if running MCP mode)
   MCP_PORT: "8001"
 
+  # CORS Configuration
+  # Allowed origins (comma-separated, no spaces)
+  CORS_ORIGINS: "http://localhost:8000,http://127.0.0.1:8000"
+  CORS_CREDENTIALS: "true"
+  CORS_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+  CORS_HEADERS: "*"
+
+  # Security Headers
+  ENABLE_HSTS: "false"  # Set to "true" in production with HTTPS
+  HSTS_MAX_AGE: "31536000"
+  ENABLE_CSP: "true"
+  CSP_POLICY: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+
   # Logging Details
   LOG_DATE_FORMAT: "%Y-%m-%d %H:%M:%S"

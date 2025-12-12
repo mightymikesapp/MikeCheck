@@ -146,6 +146,42 @@ class Settings(BaseSettings):
         description="Directory for caching citation network data",
     )
 
+    # CORS configuration
+    cors_origins: str = Field(
+        default="http://localhost:8000,http://127.0.0.1:8000",
+        description="Comma-separated list of allowed CORS origins",
+    )
+    cors_credentials: bool = Field(
+        default=True,
+        description="Allow credentials in CORS requests",
+    )
+    cors_methods: str = Field(
+        default="GET,POST,PUT,DELETE,OPTIONS",
+        description="Comma-separated list of allowed CORS methods",
+    )
+    cors_headers: str = Field(
+        default="*",
+        description="Comma-separated list of allowed CORS headers",
+    )
+
+    # Security headers
+    enable_hsts: bool = Field(
+        default=False,  # Set to True in production
+        description="Enable HSTS (HTTP Strict Transport Security) header",
+    )
+    hsts_max_age: int = Field(
+        default=31536000,  # 1 year
+        description="HSTS max-age in seconds",
+    )
+    enable_csp: bool = Field(
+        default=True,
+        description="Enable Content Security Policy (CSP) header",
+    )
+    csp_policy: str = Field(
+        default="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+        description="Content Security Policy directive",
+    )
+
     def model_post_init(self, __context: Any) -> None:
         """Apply mode-specific defaults while preserving explicit overrides."""
         super().model_post_init(__context)

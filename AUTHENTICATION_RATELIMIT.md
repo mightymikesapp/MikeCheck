@@ -249,7 +249,7 @@ Rate limits track by:
 
 **1. API Key (if authenticated):**
 ```
-api_key:API_KEY_EXAMPLE_DEV
+api_key:<YOUR_API_KEY>
 ```
 
 **2. IP Address (fallback):**

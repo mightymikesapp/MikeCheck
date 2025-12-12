@@ -121,13 +121,19 @@ async def verify_api_key(request: Request) -> str:
     if not api_key:
         api_key = request.headers.get("X-API-Key", "")
 
-    # 3. Check query parameter (less secure, but useful for development)
+    # 3. Check query parameter (optional and less secure)
     if not api_key and "api_key" in request.query_params:
-        api_key = request.query_params.get("api_key", "")
-        logger.warning(
-            "API key provided via query parameter (less secure than headers)",
-            extra={"event": "api_key_query_param"},
-        )
+        if settings.allow_api_key_query_param:
+            api_key = request.query_params.get("api_key", "")
+            logger.warning(
+                "API key provided via query parameter (less secure than headers)",
+                extra={"event": "api_key_query_param"},
+            )
+        else:
+            logger.info(
+                "API key query parameter ignored because allow_api_key_query_param is disabled",
+                extra={"event": "api_key_query_param_ignored"},
+            )
 
     # Validate key
     if not api_key:

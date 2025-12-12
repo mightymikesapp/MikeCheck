@@ -187,6 +187,10 @@ class Settings(BaseSettings):
         default=False,
         description="Enable API key authentication for all protected endpoints",
     )
+    allow_api_key_query_param: bool = Field(
+        default=False,
+        description="Allow API keys to be provided via query parameters (less secure)",
+    )
     api_keys: str = Field(
         default="",
         description="Comma-separated list of valid API keys (empty = disabled)",

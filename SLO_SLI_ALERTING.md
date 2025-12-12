@@ -162,7 +162,7 @@ Monthly budget = 2.6M requests * 0.005 = 13,000 errors allowed
 #### 1. Request Success Rate
 ```promql
 # Percentage of successful requests
-(rate(api_requests_total{status_code="2.."}[5m]) / rate(api_requests_total[5m])) * 100
+(rate(api_requests_total{status_code=~"2.."}[5m]) / rate(api_requests_total[5m])) * 100
 ```
 
 #### 2. Response Time Percentiles
@@ -297,7 +297,7 @@ Error Budget = (1 - 0.995) * 730 = 3.65 hours of failure allowed
 ```promql
 # Remaining error budget (%)
 100 - (
-  (rate(api_requests_total{status_code="5.."}[30d]) / rate(api_requests_total[30d]))
+  (increase(api_requests_total{status_code=~"5.."}[30d]) / increase(api_requests_total[30d]))
   * 100 / 0.5
 )
 ```
@@ -576,10 +576,10 @@ MikeCheck Production Dashboard
 **SLO Status Card:**
 ```promql
 # Availability (last 30 days)
-(count(up{job="mikecheck"} == 1) over 30d / count(up{job="mikecheck"}) over 30d) * 100
+avg_over_time(up{job="mikecheck"}[30d]) * 100
 
 # Error Rate (last 30 days)
-(rate(api_requests_total{status_code=~"5.."}[30d]) / rate(api_requests_total[30d])) * 100
+(increase(api_requests_total{status_code=~"5.."}[30d]) / increase(api_requests_total[30d])) * 100
 
 # P99 Latency (last 5 minutes)
 histogram_quantile(0.99, rate(api_request_duration_seconds_bucket[5m]))

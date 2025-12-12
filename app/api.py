@@ -3,8 +3,12 @@
 Exposes the core legal research tools via REST endpoints.
 """
 
+import asyncio
 import logging
-from typing import Any, Awaitable, Callable, List, Optional
+import signal
+import sys
+from contextlib import asynccontextmanager
+from typing import Any, Awaitable, Callable, AsyncGenerator, List, Optional
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
@@ -24,10 +28,89 @@ from app.tools.treatment import check_case_validity_impl
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Graceful shutdown state
+_shutdown_event: asyncio.Event | None = None
+
+
+def _signal_handler(sig: int, frame: Any) -> None:
+    """Handle SIGTERM and SIGINT for graceful shutdown."""
+    sig_name = signal.Signals(sig).name
+    logger.info(
+        "Shutdown signal received",
+        extra={"signal": sig_name, "event": "signal_received"}
+    )
+    # Set shutdown event if running in async context
+    if _shutdown_event:
+        _shutdown_event.set()
+    # Exit gracefully
+    sys.exit(0)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    Manage application startup and shutdown events.
+
+    Handles:
+    - Registering signal handlers on startup
+    - Graceful shutdown with connection draining
+    - Resource cleanup (cache, connections, etc.)
+    """
+    global _shutdown_event
+
+    # STARTUP
+    logger.info("Application startup initiated", extra={"event": "startup_start"})
+
+    # Initialize shutdown event for signal handling
+    _shutdown_event = asyncio.Event()
+
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
+
+    logger.info(
+        "Signal handlers registered (SIGTERM, SIGINT)",
+        extra={"event": "startup_complete"}
+    )
+
+    try:
+        yield
+    except Exception as e:
+        logger.error(
+            f"Error during application lifecycle: {e}",
+            extra={"event": "error", "error": str(e)}
+        )
+    finally:
+        # SHUTDOWN
+        logger.info("Application shutdown initiated", extra={"event": "shutdown_start"})
+
+        # Give in-flight requests time to complete (connection drain)
+        # This delay allows clients to notice connection close and reconnect
+        drain_timeout = 15  # seconds
+        logger.info(
+            f"Draining connections (waiting {drain_timeout}s for in-flight requests)",
+            extra={"event": "draining", "timeout_seconds": drain_timeout}
+        )
+        await asyncio.sleep(drain_timeout)
+
+        # Clean up resources
+        logger.info("Cleaning up resources", extra={"event": "cleanup_start"})
+
+        # Close caches if they have close methods
+        try:
+            # Placeholder for future cache cleanup
+            # await cache_manager.close()
+            pass
+        except Exception as e:
+            logger.error(f"Error closing cache: {e}")
+
+        logger.info("Shutdown complete", extra={"event": "shutdown_complete"})
+
 app = FastAPI(
     title="MikeCheck API",
     description="Backend API for MikeCheck Legal Assistant",
     version="0.1.0",
+    lifespan=lifespan,  # Enable graceful shutdown handling
 )
 
 # Configure CORS from settings (environment-configurable)

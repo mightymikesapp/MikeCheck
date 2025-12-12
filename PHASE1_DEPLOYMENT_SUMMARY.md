@@ -250,7 +250,7 @@ All high-priority Phase 2 items landed in this PR (PR #66 / commit 9ca2b05). New
 4. **Dependency hygiene**
    - Duplicates removed, lockfiles updated, and security scanning/automation documented (`DEPENDENCY_AUDIT.md`, `DEPENDENCY_MANAGEMENT.md`).
 
-**Phase 2 Total:** 0 additional hours | **Outcome:** Phase 2 complete; remaining improvements should roll into Phase 3/4 hardening and scaling.
+**Phase 2 Total:** ~24-32 hours | **Outcome:** Phase 2 complete; remaining improvements should roll into Phase 3/4 hardening and scaling.
 
 ---
 

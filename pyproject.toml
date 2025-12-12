@@ -22,12 +22,16 @@ dependencies = [
     "pypdf>=4.0.0",
     "jinja2>=3.1.3",
     "python-dateutil>=2.8.2",
+    "slowapi>=0.1.9",  # Rate limiting for FastAPI
 ]
 
 [project.scripts]
 legal-research-mcp = "app.server:cli"
 
 [project.optional-dependencies]
+monitoring = [
+    "prometheus-client>=0.17.0",  # Prometheus metrics
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -36,6 +40,21 @@ dev = [
     "respx>=0.21.1",
     "ruff>=0.3.0",
     "mypy>=1.8.0",
+    "prometheus-client>=0.17.0",  # For testing metrics
+]
+
+# This group is for 'uv sync --dev'. It must be kept in sync with
+# [project.optional-dependencies].dev for 'pip install .[dev]' compatibility.
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.15.1",
+    "respx>=0.21.1",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "prometheus-client>=0.17.0",  # For testing metrics
 ]
 
 [build-system]

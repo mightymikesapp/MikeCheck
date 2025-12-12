@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research
+    app.kubernetes.io/instance: production
+  annotations:
+    description: "Namespace for Legal Research Assistant MCP deployment"

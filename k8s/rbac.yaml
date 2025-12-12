@@ -1,0 +1,48 @@
+---
+# ServiceAccount for the deployment
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: legal-research
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+    app.kubernetes.io/version: "0.1.0"
+
+---
+# Role for reading metrics (optional, for Prometheus)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: legal-research-metrics-reader
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding to grant the role to the Prometheus service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: legal-research-metrics-reader-binding
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: legal-research-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: prometheus-k8s
+    namespace: monitoring

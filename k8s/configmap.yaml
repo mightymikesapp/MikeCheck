@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: legal-research-config
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+    app.kubernetes.io/version: "0.1.0"
+data:
+  # Server Configuration
+  SERVER_TYPE: "fastapi"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  DEBUG: "false"
+
+  # CourtListener API Configuration
+  COURTLISTENER_BASE_URL: "https://www.courtlistener.com/api/rest/v4/"
+  COURTLISTENER_MCP_URL: "http://localhost:8000/mcp/"
+
+  # Performance Mode (light | standard | heavy)
+  MODE: "standard"
+
+  # Caching Configuration
+  CACHE_ENABLED: "true"
+  CACHE_DIR: "/app/.cache"
+  COURTLISTENER_CACHE_DIR: "/app/.cache/courtlistener"
+  NETWORK_CACHE_DIR: "/app/citation_networks"
+
+  # Cache TTL Settings (in seconds)
+  # Metadata: 24 hours (86400)
+  COURTLISTENER_TTL_METADATA: "86400"
+  # Opinion Text: 7 days (604800)
+  COURTLISTENER_TTL_TEXT: "604800"
+  # Search Results: 1 hour (3600)
+  COURTLISTENER_TTL_SEARCH: "3600"
+  COURTLISTENER_SEARCH_CACHE_ENABLED: "true"
+
+  # Timeout Configuration (in seconds)
+  COURTLISTENER_TIMEOUT: "30"
+  COURTLISTENER_CONNECT_TIMEOUT: "10"
+  COURTLISTENER_READ_TIMEOUT: "60"
+
+  # Retry Configuration
+  COURTLISTENER_RETRY_ATTEMPTS: "3"
+  COURTLISTENER_RETRY_BACKOFF: "1.0"
+
+  # Treatment Analysis Configuration
+  TREATMENT_CONFIDENCE_THRESHOLD: "0.7"
+  FETCH_FULL_TEXT_STRATEGY: "smart"
+  MAX_CITING_CASES: "100"
+  MAX_FULL_TEXT_FETCHES: "10"
+
+  # Citation Network Configuration
+  NETWORK_MAX_DEPTH: "3"
+  MAX_TOTAL_NETWORK_NODES: "300"
+  MAX_QUOTES_PER_BATCH: "50"
+
+  # MCP Server Configuration (if running MCP mode)
+  MCP_PORT: "8001"
+
+  # CORS Configuration
+  # Allowed origins (comma-separated, no spaces)
+  CORS_ORIGINS: "http://localhost:8000,http://127.0.0.1:8000"
+  CORS_CREDENTIALS: "true"
+  CORS_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+  CORS_HEADERS: "*"
+
+  # Security Headers
+  ENABLE_HSTS: "false"  # Set to "true" in production with HTTPS
+  HSTS_MAX_AGE: "31536000"
+  ENABLE_CSP: "true"
+  CSP_POLICY: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+
+  # Logging Details
+  LOG_DATE_FORMAT: "%Y-%m-%d %H:%M:%S"

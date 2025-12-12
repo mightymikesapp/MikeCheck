@@ -1,0 +1,48 @@
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "mightymikesapp/maintainers"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore(deps):"
+      prefix-development: "chore(deps-dev):"
+      include: "scope"
+    allow:
+      - dependency-type: "all"
+    groups:
+      security-updates:
+        applies-to: security-updates
+    ignore:
+      # Ignore major version updates for stability
+      # - dependency-name: "fastapi"
+      #   update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "mightymikesapp/maintainers"
+    labels:
+      - "ci-cd"
+      - "github-actions"
+    commit-message:
+      prefix: "ci(actions):"
+      include: "scope"
+    groups:
+      security-updates:
+        applies-to: security-updates

@@ -1,0 +1,64 @@
+---
+# Horizontal Pod Autoscaler - scales based on CPU usage
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: legal-research-mcp-hpa
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: legal-research-mcp
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    # Scale based on CPU usage
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70  # Scale up when average CPU > 70%
+    # Scale based on memory usage
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80  # Scale up when average memory > 80%
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50  # Scale down by max 50% of current replicas
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100  # Scale up by max 100% of current replicas
+          periodSeconds: 30
+        - type: Pods
+          value: 2  # Or add max 2 pods per period
+          periodSeconds: 30
+      selectPolicy: Max  # Select policy with largest change
+
+---
+# Optional: PodDisruptionBudget to ensure availability during cluster maintenance
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: legal-research-mcp-pdb
+  namespace: legal-research
+  labels:
+    app.kubernetes.io/name: legal-research-mcp
+spec:
+  minAvailable: 2  # At least 2 pods must be available at all times
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: legal-research-mcp

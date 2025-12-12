@@ -1,0 +1,66 @@
+version: '3.9'
+
+services:
+  legal-research-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Server configuration
+      SERVER_TYPE: fastapi
+      LOG_LEVEL: DEBUG
+      DEBUG: "true"
+
+      # CourtListener API
+      COURTLISTENER_API_KEY: ${COURTLISTENER_API_KEY:-development-key}
+      COURTLISTENER_BASE_URL: https://www.courtlistener.com/api/rest/v4/
+
+      # Performance mode
+      MODE: standard
+
+      # Caching
+      CACHE_ENABLED: "true"
+      CACHE_DIR: /app/.cache
+      COURTLISTENER_CACHE_DIR: /app/.cache/courtlistener
+      NETWORK_CACHE_DIR: /app/citation_networks
+
+      # Timeouts (development can be more lenient)
+      COURTLISTENER_TIMEOUT: 30
+      COURTLISTENER_CONNECT_TIMEOUT: 10
+      COURTLISTENER_READ_TIMEOUT: 60
+
+    volumes:
+      # Persist cache between container restarts (local development)
+      - .cache:/app/.cache
+      - citation_networks:/app/citation_networks
+      - chroma_db:/app/chroma_db
+
+      # Mount source code for hot reload (optional)
+      # Uncomment for development with code changes visible in container
+      # - ./app:/app/app
+      # - ./.env:/app/.env
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    stdin_open: true
+    tty: true
+
+    # Restart policy for production-like behavior
+    restart: on-failure
+
+volumes:
+  citation_networks:
+    driver: local
+  chroma_db:
+    driver: local
+
+networks:
+  default:
+    name: legal-research-network

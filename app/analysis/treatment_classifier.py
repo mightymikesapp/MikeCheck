@@ -299,6 +299,8 @@ class TreatmentClassifier:
     ) -> list[TreatmentSignal]:
         """Extract treatment signals for a specific citation.
 
+        Extracts treatment signals for a specific citation from the provided text.
+
         Args:
             text: Text to search for mentions of the citation.
             citation: Citation string to locate and analyze within the text.
@@ -314,6 +316,7 @@ class TreatmentClassifier:
 
         for context, position in contexts:
             # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
+            # Removed redundant negative_patterns and positive_patterns loops (Bottleneck #1 fix)
             for match in self.combined_signal_pattern.finditer(context):
                 group_name = match.lastgroup
                 if not group_name:
@@ -648,6 +651,8 @@ class TreatmentClassifier:
 
     def _get_signal_weight(self, signal: str, treatment_type: TreatmentType) -> float:
         """Return the predefined weight for a normalized treatment signal.
+
+        Retrieve the predefined weight for a normalized treatment signal.
 
         Args:
             signal: Normalized signal name.

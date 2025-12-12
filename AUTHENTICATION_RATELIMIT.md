@@ -319,7 +319,7 @@ data:
 
 ```bash
 curl -X POST \
-  -H "Authorization: Bearer API_KEY_EXAMPLE_DEV" \
+  -H "Authorization: Bearer <YOUR_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"citation": "410 U.S. 113"}' \
   https://api.example.com/herding/analyze

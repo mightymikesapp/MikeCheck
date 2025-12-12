@@ -10,11 +10,12 @@ metadata:
     app.kubernetes.io/version: "0.1.0"
 
 ---
-# ClusterRole for reading metrics (optional, for Prometheus)
+# Role for reading metrics (optional, for Prometheus)
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: legal-research-metrics-reader
+  namespace: legal-research
   labels:
     app.kubernetes.io/name: legal-research-mcp
 rules:
@@ -29,18 +30,19 @@ rules:
     verbs: ["get", "list", "watch"]
 
 ---
-# ClusterRoleBinding to grant the role to the service account
+# RoleBinding to grant the role to the Prometheus service account
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: legal-research-metrics-reader-binding
+  namespace: legal-research
   labels:
     app.kubernetes.io/name: legal-research-mcp
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: legal-research-metrics-reader
 subjects:
   - kind: ServiceAccount
-    name: legal-research
-    namespace: legal-research
+    name: prometheus-k8s
+    namespace: monitoring

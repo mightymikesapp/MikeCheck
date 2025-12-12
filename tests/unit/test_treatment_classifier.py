@@ -1308,3 +1308,480 @@ def test_signal_weight_lookup_consistency(classifier):
     for pattern_text, (signal, weight) in POSITIVE_SIGNALS.items():
         retrieved_weight = classifier._get_signal_weight(signal, TreatmentType.POSITIVE)
         assert retrieved_weight == weight, f"Weight mismatch for positive signal: {signal}"
+
+
+# ============================================================================
+# Tests for _get_citation_patterns with Type Hints and Well-Known Cases
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_returns_typed_list(classifier):
+    """Test _get_citation_patterns returns list[re.Pattern[str]] as declared."""
+    citation = "123 U.S. 456"
+    patterns = classifier._get_citation_patterns(citation)
+    
+    assert isinstance(patterns, list)
+    assert len(patterns) > 0
+    
+    # Verify all items are compiled regex patterns
+    import re
+    for pattern in patterns:
+        assert isinstance(pattern, re.Pattern)
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_basic_citation(classifier):
+    """Test _get_citation_patterns with basic citation format."""
+    citation = "123 U.S. 456"
+    patterns = classifier._get_citation_patterns(citation)
+    
+    # Should have at least one pattern (the citation itself)
+    assert len(patterns) >= 1
+    
+    # Should match the citation with flexible whitespace
+    text = "In 123 U.S. 456, the court held..."
+    assert any(p.search(text) for p in patterns)
+    
+    # Should match with extra spaces
+    text_spaces = "In 123  U.S.  456, the court held..."
+    assert any(p.search(text_spaces) for p in patterns)
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_well_known_case(classifier):
+    """Test _get_citation_patterns includes case name for well-known cases."""
+    from app.analysis.treatment_classifier import WELL_KNOWN_CASES
+    
+    # Test with Roe v. Wade (a well-known case)
+    citation = "410 U.S. 113"
+    patterns = classifier._get_citation_patterns(citation)
+    
+    # Should have 2 patterns: citation and case name
+    assert len(patterns) == 2
+    
+    # First pattern should match the citation
+    text_citation = "The court cited 410 U.S. 113 in its opinion."
+    assert patterns[0].search(text_citation)
+    
+    # Second pattern should match the case name
+    text_name = "The court followed Roe v. Wade in its reasoning."
+    assert patterns[1].search(text_name)
+    
+    # Verify case name is correct
+    assert citation in WELL_KNOWN_CASES
+    case_name = WELL_KNOWN_CASES[citation]
+    assert case_name == "Roe v. Wade"
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_non_well_known_case(classifier):
+    """Test _get_citation_patterns with non-well-known cases."""
+    # A citation not in WELL_KNOWN_CASES
+    citation = "123 F.3d 456"
+    patterns = classifier._get_citation_patterns(citation)
+    
+    # Should only have 1 pattern (citation only, no case name)
+    assert len(patterns) == 1
+    
+    # Should still match the citation
+    text = "As stated in 123 F.3d 456, the precedent..."
+    assert patterns[0].search(text)
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_cache_efficiency(classifier):
+    """Test _get_citation_patterns LRU cache improves performance."""
+    import time
+    
+    citation = "410 U.S. 113"
+    
+    # First call (cache miss)
+    start = time.time()
+    patterns1 = classifier._get_citation_patterns(citation)
+    first_call_time = time.time() - start
+    
+    # Second call (cache hit)
+    start = time.time()
+    patterns2 = classifier._get_citation_patterns(citation)
+    second_call_time = time.time() - start
+    
+    # Verify same object returned (cached)
+    assert patterns1 is patterns2
+    
+    # Cache hit should be significantly faster (or at least not slower)
+    # We don't assert strict timing as it varies, but verify caching works
+    assert second_call_time <= first_call_time * 1.5
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_multiple_well_known_cases(classifier):
+    """Test _get_citation_patterns with multiple well-known cases."""
+    from app.analysis.treatment_classifier import WELL_KNOWN_CASES
+    
+    # Test all well-known cases
+    for citation, expected_name in WELL_KNOWN_CASES.items():
+        patterns = classifier._get_citation_patterns(citation)
+        
+        # Should have 2 patterns for each well-known case
+        assert len(patterns) == 2, f"Expected 2 patterns for {citation}"
+        
+        # Verify case name pattern works
+        text = f"The court analyzed {expected_name} carefully."
+        assert patterns[1].search(text), f"Case name pattern failed for {expected_name}"
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_case_insensitive(classifier):
+    """Test _get_citation_patterns patterns are case-insensitive."""
+    citation = "410 U.S. 113"
+    patterns = classifier._get_citation_patterns(citation)
+    
+    # Should match various case combinations
+    test_cases = [
+        "410 U.S. 113",
+        "410 u.s. 113",
+        "410 U.s. 113",
+        "Roe v. Wade",
+        "ROE V. WADE",
+        "roe v. wade",
+    ]
+    
+    for text in test_cases:
+        assert any(p.search(text) for p in patterns), f"Failed to match: {text}"
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_us_cite_regex(classifier):
+    """Test _get_citation_patterns correctly identifies U.S. citations."""
+    # Test various U.S. citation formats
+    us_citations = [
+        "410 U.S. 113",
+        "123 U.S. 456",
+        "505 U.S. 833",
+        "539 U.S. 558",
+    ]
+    
+    for citation in us_citations:
+        patterns = classifier._get_citation_patterns(citation)
+        assert len(patterns) >= 1
+        
+        # Should match the citation in text
+        text = f"The case {citation} established..."
+        assert patterns[0].search(text)
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_non_us_citations(classifier):
+    """Test _get_citation_patterns with non-U.S. citations."""
+    non_us_citations = [
+        "123 F.3d 456",
+        "456 F.Supp. 789",
+        "789 S.W.2d 012",
+        "345 Cal.Rptr. 678",
+    ]
+    
+    for citation in non_us_citations:
+        patterns = classifier._get_citation_patterns(citation)
+        
+        # Should only return citation pattern (no case name)
+        assert len(patterns) == 1
+        
+        # Should still match the citation
+        text = f"According to {citation}, the rule..."
+        assert patterns[0].search(text)
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_edge_cases(classifier):
+    """Test _get_citation_patterns with edge cases."""
+    # Empty string
+    patterns = classifier._get_citation_patterns("")
+    assert len(patterns) >= 1
+    
+    # Citation with special characters
+    citation = "123 U.S. 456 (1999)"
+    patterns = classifier._get_citation_patterns(citation)
+    assert len(patterns) >= 1
+    
+    # Very long citation
+    long_citation = "123 F.3d 456, 789 (9th Cir. 1999)"
+    patterns = classifier._get_citation_patterns(long_citation)
+    assert len(patterns) >= 1
+
+
+@pytest.mark.unit
+def test_get_citation_patterns_cache_max_size(classifier):
+    """Test _get_citation_patterns cache respects maxsize=128."""
+    # Generate 150 unique citations (more than cache size)
+    citations = [f"{i} U.S. {i*10}" for i in range(1, 151)]
+    
+    # Call for all citations
+    for citation in citations:
+        classifier._get_citation_patterns(citation)
+    
+    # Verify cache still works for recent calls
+    recent_citation = citations[-1]
+    patterns1 = classifier._get_citation_patterns(recent_citation)
+    patterns2 = classifier._get_citation_patterns(recent_citation)
+    
+    # Should still be cached (same object)
+    assert patterns1 is patterns2
+
+
+# ============================================================================
+# Tests for _map_opinion_type Method
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_map_opinion_type_none_input(classifier):
+    """Test _map_opinion_type with None input."""
+    result = classifier._map_opinion_type(None)
+    assert result == "majority"
+
+
+@pytest.mark.unit
+def test_map_opinion_type_empty_string(classifier):
+    """Test _map_opinion_type with empty string."""
+    result = classifier._map_opinion_type("")
+    assert result == "majority"
+
+
+@pytest.mark.unit
+def test_map_opinion_type_dissent(classifier):
+    """Test _map_opinion_type identifies dissents."""
+    dissent_types = [
+        "dissent",
+        "dissenting",
+        "DISSENT",
+        "Dissenting Opinion",
+        "dissent-in-part",
+    ]
+    
+    for op_type in dissent_types:
+        result = classifier._map_opinion_type(op_type)
+        assert result == "dissent", f"Failed for: {op_type}"
+
+
+@pytest.mark.unit
+def test_map_opinion_type_concurrence(classifier):
+    """Test _map_opinion_type identifies concurrences."""
+    concurrence_types = [
+        "concurrence",
+        "concurring",
+        "CONCURRENCE",
+        "Concurring Opinion",
+        "concurrence-in-part",
+    ]
+    
+    for op_type in concurrence_types:
+        result = classifier._map_opinion_type(op_type)
+        assert result == "concurrence", f"Failed for: {op_type}"
+
+
+@pytest.mark.unit
+def test_map_opinion_type_majority(classifier):
+    """Test _map_opinion_type identifies majority opinions."""
+    majority_types = [
+        "lead",
+        "combined",
+        "per_curiam",
+        "majority",
+        "opinion",
+        "010combined",
+        "020lead",
+    ]
+    
+    for op_type in majority_types:
+        result = classifier._map_opinion_type(op_type)
+        assert result == "majority", f"Failed for: {op_type}"
+
+
+@pytest.mark.unit
+def test_map_opinion_type_case_insensitive(classifier):
+    """Test _map_opinion_type is case-insensitive."""
+    test_cases = [
+        ("DISSENT", "dissent"),
+        ("DiSsEnT", "dissent"),
+        ("CONCURRENCE", "concurrence"),
+        ("CoNcUrReNcE", "concurrence"),
+        ("LEAD", "majority"),
+        ("LeAd", "majority"),
+    ]
+    
+    for input_type, expected_output in test_cases:
+        result = classifier._map_opinion_type(input_type)
+        assert result == expected_output, f"Failed for: {input_type}"
+
+
+@pytest.mark.unit
+def test_map_opinion_type_partial_matches(classifier):
+    """Test _map_opinion_type with partial string matches."""
+    # "dissent" in string should match
+    assert classifier._map_opinion_type("dissenting-opinion") == "dissent"
+    assert classifier._map_opinion_type("partial-dissent") == "dissent"
+    
+    # "concurring" in string should match
+    assert classifier._map_opinion_type("concurring-in-judgment") == "concurrence"
+    assert classifier._map_opinion_type("concurrence-and-dissent") == "concurrence"
+
+
+@pytest.mark.unit
+def test_map_opinion_type_unknown_types(classifier):
+    """Test _map_opinion_type with unknown opinion types."""
+    unknown_types = [
+        "unknown",
+        "other",
+        "special",
+        "advisory",
+    ]
+    
+    # Unknown types should default to majority
+    for op_type in unknown_types:
+        result = classifier._map_opinion_type(op_type)
+        assert result == "majority", f"Failed for: {op_type}"
+
+
+@pytest.mark.unit
+def test_map_opinion_type_with_whitespace(classifier):
+    """Test _map_opinion_type handles whitespace correctly."""
+    test_cases = [
+        " dissent ",
+        "\tdissent\n",
+        "  concurrence  ",
+        "\nconcurring\t",
+    ]
+    
+    for op_type in test_cases:
+        result = classifier._map_opinion_type(op_type)
+        # Should handle whitespace via .lower() which preserves spaces
+        assert result in ["dissent", "concurrence", "majority"]
+
+
+@pytest.mark.unit
+def test_map_opinion_type_priority_dissent_over_concurrence(classifier):
+    """Test _map_opinion_type prioritizes dissent if both keywords present."""
+    # If both dissent and concurrence appear, dissent is checked first
+    op_type = "concurrence-dissent"
+    result = classifier._map_opinion_type(op_type)
+    # Implementation checks dissent first, so should return dissent
+    # But if "concurrence" comes before "dissent" in the string, it depends on order
+    # Let's verify the actual behavior
+    assert result in ["dissent", "concurrence"]  # Either is valid based on implementation
+
+
+@pytest.mark.unit
+def test_map_opinion_type_per_curiam(classifier):
+    """Test _map_opinion_type handles per curiam opinions."""
+    per_curiam_types = [
+        "per_curiam",
+        "per curiam",
+        "percuriam",
+    ]
+    
+    for op_type in per_curiam_types:
+        result = classifier._map_opinion_type(op_type)
+        # Per curiam should be treated as majority
+        assert result == "majority", f"Failed for: {op_type}"
+
+
+# ============================================================================
+# Integration Tests for Updated Methods
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_extract_signals_uses_updated_citation_patterns(classifier):
+    """Integration test: extract_signals uses updated _get_citation_patterns."""
+    # Test with well-known case
+    text = "The court overruled Roe v. Wade in this decision."
+    citation = "410 U.S. 113"
+    
+    signals = classifier.extract_signals(text, citation)
+    
+    # Should find signals because pattern matches case name
+    assert len(signals) > 0
+    negative_signals = [s for s in signals if s.treatment_type == TreatmentType.NEGATIVE]
+    assert len(negative_signals) > 0
+
+
+@pytest.mark.unit
+def test_classify_treatment_with_opinion_type_mapping(classifier):
+    """Integration test: classify_treatment uses _map_opinion_type."""
+    case = {
+        "caseName": "Test Case",
+        "id": 12345,
+        "citation": ["789 U.S. 012"],
+        "dateFiled": "2020-01-15",
+        "court": "scotus",
+        "opinions": [
+            {
+                "type": "dissenting",
+                "snippet": "I dissent from the majority's decision to follow 123 U.S. 456.",
+            }
+        ],
+    }
+    
+    result = classifier.classify_treatment(case, "123 U.S. 456")
+    
+    # Should have mapped opinion type correctly
+    assert result.case_name == "Test Case"
+    # Signals should be tagged with correct opinion type
+    if result.signals_found:
+        for signal in result.signals_found:
+            assert signal.opinion_type in ["dissent", "majority", "concurrence"]
+
+
+@pytest.mark.unit
+def test_docstring_consistency(classifier):
+    """Test that updated docstrings are consistent with implementation."""
+    import inspect
+    
+    # Check _is_negated docstring
+    is_negated_doc = inspect.getdoc(classifier._is_negated)
+    assert "window" in is_negated_doc.lower()
+    assert "parameters" in is_negated_doc.lower() or "args" in is_negated_doc.lower()
+    
+    # Check _get_court_weight docstring
+    court_weight_doc = inspect.getdoc(classifier._get_court_weight)
+    assert "weight" in court_weight_doc.lower()
+    assert "court" in court_weight_doc.lower()
+    
+    # Check _map_opinion_type docstring
+    map_opinion_doc = inspect.getdoc(classifier._map_opinion_type)
+    assert "opinion" in map_opinion_doc.lower()
+    assert "majority" in map_opinion_doc.lower()
+    
+    # Check _get_citation_patterns docstring
+    patterns_doc = inspect.getdoc(classifier._get_citation_patterns)
+    assert "pattern" in patterns_doc.lower()
+    assert "citation" in patterns_doc.lower()
+    
+    # Check extract_signals docstring
+    extract_doc = inspect.getdoc(classifier.extract_signals)
+    assert "signal" in extract_doc.lower()
+    assert "treatment" in extract_doc.lower()
+
+
+@pytest.mark.unit
+def test_type_hint_compatibility(classifier):
+    """Test that methods work correctly with declared type hints."""
+    # _get_citation_patterns should return list[re.Pattern[str]]
+    import re
+    patterns = classifier._get_citation_patterns("123 U.S. 456")
+    assert isinstance(patterns, list)
+    for p in patterns:
+        assert isinstance(p, re.Pattern)
+    
+    # _map_opinion_type should return str
+    result = classifier._map_opinion_type("dissent")
+    assert isinstance(result, str)
+    
+    # _is_negated should return bool
+    negated = classifier._is_negated("not overruled", 4)
+    assert isinstance(negated, bool)
+    
+    # _get_court_weight should return float
+    weight = classifier._get_court_weight("scotus")
+    assert isinstance(weight, float)

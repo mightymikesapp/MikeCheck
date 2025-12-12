@@ -61,22 +61,12 @@ def initialize_metrics() -> None:
     Should be called once at application startup.
     Safe to call multiple times (idempotent).
     """
-    global (
-        mcp_tool_calls_total,
-        mcp_tool_duration_seconds,
-        mcp_tool_errors_total,
-        api_requests_total,
-        api_request_duration_seconds,
-        api_request_errors_total,
-        courtlistener_api_calls_total,
-        courtlistener_api_duration_seconds,
-        courtlistener_api_errors_total,
-        cache_hits_total,
-        cache_misses_total,
-        cache_size_bytes,
-        circuit_breaker_open_total,
-        circuit_breaker_state,
-    )
+    global mcp_tool_calls_total, mcp_tool_duration_seconds, mcp_tool_errors_total
+    global api_requests_total, api_request_duration_seconds, api_request_errors_total
+    global courtlistener_api_calls_total, courtlistener_api_duration_seconds
+    global courtlistener_api_errors_total
+    global cache_hits_total, cache_misses_total, cache_size_bytes
+    global circuit_breaker_open_total, circuit_breaker_state
 
     if not PROMETHEUS_AVAILABLE:
         return

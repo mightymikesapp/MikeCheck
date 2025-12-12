@@ -503,7 +503,7 @@ rate(rate_limit_exceeded_total[5m])
 rate(rate_limit_exceeded_total{endpoint="/herding/analyze"}[5m])
 
 # By API key
-rate(rate_limit_exceeded_total{api_key="API_KEY_EXAMPLE_DEV"}[5m])
+rate(rate_limit_exceeded_total{api_key="<YOUR_API_KEY>"}[5m])
 ```
 
 ### Common Issues

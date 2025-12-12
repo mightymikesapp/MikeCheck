@@ -175,6 +175,14 @@ class TreatmentClassifier:
         for s, w in POSITIVE_SIGNALS.values():
             self.signal_weights[(s, TreatmentType.POSITIVE)] = w
 
+        # For legacy compatibility or if iterative checks are restored
+        self.negative_patterns = {
+            re.compile(p, re.IGNORECASE): (s, w) for p, (s, w) in NEGATIVE_SIGNALS.items()
+        }
+        self.positive_patterns = {
+            re.compile(p, re.IGNORECASE): (s, w) for p, (s, w) in POSITIVE_SIGNALS.items()
+        }
+
     def should_fetch_full_text(
         self,
         initial_analysis: "TreatmentAnalysis",
@@ -232,7 +240,7 @@ class TreatmentClassifier:
         if re.match(r"d\d+", court_id) or "dist" in court_id:
             return 0.6
 
-        return 0.7
+        return 0.7  # State/other courts default
 
     def _map_opinion_type(self, op_type: str | None) -> str:
         """Map CourtListener opinion type to simplified category."""
@@ -269,6 +277,7 @@ class TreatmentClassifier:
             text: Text to analyze
             citation: The citation being analyzed
             opinion_type: Type of opinion (majority, concurrence, dissent)
+            opinion_type: Type of opinion (majority, dissent, etc.)
 
         Returns:
             List of treatment signals found
@@ -277,6 +286,36 @@ class TreatmentClassifier:
         contexts = self._extract_citation_contexts(text, citation)
 
         for context, position in contexts:
+            # Check for negative signals
+            for pattern, (signal, weight) in self.negative_patterns.items():
+                for match in pattern.finditer(context):
+                    if self._is_negated(context, match.start()):
+                        continue
+                    signals.append(
+                        TreatmentSignal(
+                            signal=signal,
+                            treatment_type=TreatmentType.NEGATIVE,
+                            position=position,
+                            context=context[:200],
+                            opinion_type=opinion_type,
+                        )
+                    )
+
+            # Check for positive signals
+            for pattern, (signal, weight) in self.positive_patterns.items():
+                for match in pattern.finditer(context):
+                    if self._is_negated(context, match.start()):
+                        continue
+                    signals.append(
+                        TreatmentSignal(
+                            signal=signal,
+                            treatment_type=TreatmentType.POSITIVE,
+                            position=position,
+                            context=context[:200],
+                            opinion_type=opinion_type,
+                        )
+                    )
+
             # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
             for match in self.combined_signal_pattern.finditer(context):
                 group_name = match.lastgroup

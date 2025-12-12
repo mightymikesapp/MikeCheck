@@ -52,21 +52,35 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ tab: 'document' }">
 
         <!-- Tabs -->
-        <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-8 max-w-md">
+        <div role="tablist" aria-label="Analysis Tools" class="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-8 max-w-md">
             <button @click="tab = 'document'"
-                    class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+                    @keydown.right.prevent="$refs.issueTab.focus(); tab = 'issue_map'"
+                    x-ref="docTab"
+                    id="tab-document"
+                    role="tab"
+                    :aria-selected="tab === 'document'"
+                    aria-controls="panel-document"
+                    :tabindex="tab === 'document' ? 0 : -1"
+                    class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-1"
                     :class="tab === 'document' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'">
                 Document Analyzer
             </button>
             <button @click="tab = 'issue_map'"
-                    class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+                    @keydown.left.prevent="$refs.docTab.focus(); tab = 'document'"
+                    x-ref="issueTab"
+                    id="tab-issue-map"
+                    role="tab"
+                    :aria-selected="tab === 'issue_map'"
+                    aria-controls="panel-issue-map"
+                    :tabindex="tab === 'issue_map' ? 0 : -1"
+                    class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-1"
                     :class="tab === 'issue_map' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'">
                 Issue Map
             </button>
         </div>
 
         <!-- Document Analyzer Tab -->
-        <div x-show="tab === 'document'" x-cloak>
+        <div id="panel-document" role="tabpanel" aria-labelledby="tab-document" tabindex="0" class="focus:outline-none" x-show="tab === 'document'" x-cloak>
             <!-- Upload Section -->
             <div class="mb-8" x-data="{ dragging: false }">
                 <form hx-post="/analyze/upload"
@@ -137,7 +151,7 @@
         </div>
 
         <!-- Issue Map Tab -->
-        <div x-show="tab === 'issue_map'" x-cloak>
+        <div id="panel-issue-map" role="tabpanel" aria-labelledby="tab-issue-map" tabindex="0" class="focus:outline-none" x-show="tab === 'issue_map'" x-cloak>
             <div class="max-w-3xl mx-auto">
                 <div class="bg-white border border-gray-200 rounded-xl p-6 mb-8 shadow-sm">
                     <h2 class="text-lg font-bold mb-4">Generate Issue Map</h2>

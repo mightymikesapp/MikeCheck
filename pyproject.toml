@@ -43,6 +43,20 @@ dev = [
     "prometheus-client>=0.17.0",  # For testing metrics
 ]
 
+# This group is for 'uv sync --dev'. It must be kept in sync with
+# [project.optional-dependencies].dev for 'pip install .[dev]' compatibility.
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.15.1",
+    "respx>=0.21.1",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "prometheus-client>=0.17.0",  # For testing metrics
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

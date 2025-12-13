@@ -389,7 +389,7 @@ class TestDeepShepardAnalyzer:
 
         suspect = results["300 U.S. 3"]
         # With high threshold, might not reach "high" level
-        assert suspect["risk_level"] in ["medium", "high"]
+        assert suspect["risk_level"] == "medium"
 
     def test_empty_network(self):
         """Test that empty network returns no results."""

@@ -341,6 +341,7 @@ class TestCircuitAnalyzer:
         )
 
         assert split is not None
+        assert circuits_analyzed == 2
         assert split.split_type == "direct_conflict"
         assert "ca9" in split.circuits_involved
         assert "ca5" in split.circuits_involved

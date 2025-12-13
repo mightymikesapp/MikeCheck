@@ -43,6 +43,7 @@ async def find_circuit_splits_impl(
         citation: Citation to analyze (e.g., "410 U.S. 113")
         min_cases_per_circuit: Minimum citing cases needed per circuit (default: 2)
         split_threshold: Threshold for determining dominant treatment (default: 0.6)
+        split_threshold: Minimum proportion required for a dominant treatment in a circuit
         request_id: Optional request ID for logging
         job_id: Optional job ID for tracking
 
@@ -56,7 +57,11 @@ async def find_circuit_splits_impl(
         tool_name="find_circuit_splits",
         request_id=request_id,
         job_id=job_id,
-        query_params={"citation": citation, "min_cases_per_circuit": min_cases_per_circuit},
+        query_params={
+            "citation": citation,
+            "min_cases_per_circuit": min_cases_per_circuit,
+            "split_threshold": split_threshold,
+        },
         event="find_circuit_splits",
     ):
         # Step 1: Look up the target case
@@ -152,6 +157,7 @@ async def find_circuit_splits_impl(
         analyzer = CircuitAnalyzer(
             min_cases_per_circuit=min_cases_per_circuit,
             split_threshold=split_threshold,
+            split_threshold=0.6,  # TODO: Make this configurable
         )
 
         split, circuits_analyzed = analyzer.detect_circuit_split(
@@ -246,6 +252,7 @@ async def find_circuit_splits(
         min_cases_per_circuit: Minimum citing cases needed per circuit to consider it
             (default: 2). Lower values may detect more splits but with less confidence.
         split_threshold: Threshold for determining dominant treatment (default: 0.6)
+        split_threshold: Proportion required for a dominant treatment in a circuit.
         request_id: Optional request ID for logging
         job_id: Optional job ID for tracking
 

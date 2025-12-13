@@ -261,6 +261,7 @@ class CircuitAnalyzer:
         Returns:
             Tuple containing CircuitSplit if split detected (or None) and the number
             of circuits analyzed
+            Tuple of (CircuitSplit if split detected else None, circuits analyzed)
         """
         if len(cases) != len(treatments):
             logger.warning(
@@ -284,12 +285,18 @@ class CircuitAnalyzer:
         # Need at least 2 circuits to have a split
         if circuits_analyzed_count < 2:
             return None, circuits_analyzed_count
+        circuits_analyzed = len(circuit_treatments)
+
+        # Need at least 2 circuits to have a split
+        if circuits_analyzed < 2:
+            return None, circuits_analyzed
 
         # Detect split type
         split_type, confidence, circuits_involved = self._detect_split_type(circuit_treatments)
 
         if split_type == "no_split":
             return None, circuits_analyzed_count
+            return None, circuits_analyzed
 
         # Build summary
         conflicting_descriptions = []
@@ -342,3 +349,4 @@ class CircuitAnalyzer:
             supreme_court_likely=supreme_court_likely,
             key_cases=key_cases,
         ), circuits_analyzed_count
+        ), circuits_analyzed

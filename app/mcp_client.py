@@ -285,7 +285,6 @@ class CourtListenerClient:
 
                 # Write cache
                 await self.cache_manager.aset(CacheType.METADATA, cache_key, data)
-                self._write_cache(f"opinion_{opinion_id}", data)
 
                 log_event(
                     logger,
@@ -704,49 +703,6 @@ class CourtListenerClient:
                 "incomplete_data": incomplete_data,
                 "confidence": confidence,
             }
-
-    def _cache_path(self, key: str) -> Path:
-        """Return the filesystem path for a legacy cache key."""
-
-        safe_key = key.replace("/", "_")
-        return self.cache_dir / f"{safe_key}.json"
-
-    def _read_cache(self, key: str) -> Any | None:
-        """Read cached JSON content for backward compatibility tests."""
-
-        path = self._cache_path(key)
-        if not path.exists():
-            return None
-
-        age = time.time() - path.stat().st_mtime
-        if age > self.cache_ttl:
-            try:
-                path.unlink()
-            except OSError:
-                pass
-            return None
-
-        try:
-            with path.open("r", encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, json.JSONDecodeError):
-            try:
-                path.unlink()
-            except OSError:
-                pass
-            return None
-
-    def _write_cache(self, key: str, data: Any) -> None:
-        """Write JSON data to the legacy cache path."""
-
-        path = self._cache_path(key)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("w", encoding="utf-8") as f:
-                json.dump(data, f)
-        except OSError:
-            # Swallow cache write errors
-            return
 
 
 # Global client instance

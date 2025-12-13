@@ -15,3 +15,7 @@
 ## 2024-05-26 - [Merged Citation Contexts]
 **Learning:** Scanning fixed-size windows around every citation caused massive redundancy (O(C*W)) when citations were close together, leading to 15x duplicated work and signals. Merging overlapping windows reduces this to O(L) (linear scan of relevant regions).
 **Action:** When analyzing text around multiple points of interest (citations), always merge overlapping regions before scanning to avoid redundant processing and duplicate results.
+
+## 2025-12-13 - [Legacy Blocking Code Survival]
+**Learning:** Even after optimizing a core component (CacheManager) to use async I/O, legacy synchronous fallback code (like `_write_cache` in `CourtListenerClient`) remained in the call path, silently re-introducing blocking behavior and redundant I/O.
+**Action:** When modernizing a component, aggressively hunt for and remove "legacy" or "backward compatibility" methods that duplicate functionality in an unoptimized way. Dead code analysis is crucial for performance.

@@ -171,7 +171,7 @@ class MLTreatmentClassifier:
                 treatment_type = TreatmentType.NEUTRAL
 
             logger.debug(
-                f"ML classification: {top_label} ({top_score:.2f}) -> {treatment_type.value}",
+                "ML classification completed",
                 extra={
                     "citation": citation,
                     "label": top_label,

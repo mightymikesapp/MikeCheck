@@ -328,7 +328,7 @@ class CourtListenerClient:
 
         # Check cache
         cached_text = await self.cache_manager.aget(CacheType.TEXT, cache_key)
-        if cached_text:
+        if cached_text is not None:
             return cast(str, cached_text)
 
         with log_operation(

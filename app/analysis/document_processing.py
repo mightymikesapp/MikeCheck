@@ -167,6 +167,7 @@ class FootnoteParser(HTMLParser):
             footnotes=footnotes,
         )
 
+
 EXCLUDED_TERMS = {
     "january",
     "february",

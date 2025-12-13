@@ -13,9 +13,13 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Literal
 
 from app.analysis.document_processing import FootnoteParser
 from app.types import CourtListenerCase, TreatmentStats
+
+# Type alias for location in document (body text vs footnotes)
+LocationType = Literal["body", "footnote"]
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +48,7 @@ class TreatmentSignal:
     position: int
     context: str
     opinion_type: str = "majority"  # majority, concurrence, dissent
-    location_type: str = "body"  # body or footnote
+    location_type: LocationType = "body"  # body or footnote
 
 
 @dataclass
@@ -61,7 +65,7 @@ class TreatmentAnalysis:
     date_filed: str | None = None
     treatment_context: str = "unknown"  # majority, dissent_only, mixed, etc.
     opinion_breakdown: dict[str, TreatmentType] = field(default_factory=dict)
-    location_type: str = "body"  # body or footnote - indicates primary location of signals
+    location_type: LocationType = "body"  # body or footnote - indicates primary location of signals
 
 
 @dataclass
@@ -299,7 +303,11 @@ class TreatmentClassifier:
         return patterns
 
     def extract_signals(
-        self, text: str, citation: str, opinion_type: str = "majority", location_type: str = "body"
+        self,
+        text: str,
+        citation: str,
+        opinion_type: str = "majority",
+        location_type: LocationType = "body",
     ) -> list[TreatmentSignal]:
         """Extract treatment signals for a specific citation.
 
@@ -462,16 +470,23 @@ class TreatmentClassifier:
                         # Extract signals from footnotes
                         if parsed.footnote_text:
                             footnote_signals = self.extract_signals(
-                                parsed.footnote_text, target_citation, op_type, location_type="footnote"
+                                parsed.footnote_text,
+                                target_citation,
+                                op_type,
+                                location_type="footnote",
                             )
                             all_signals.extend(footnote_signals)
 
                         # Determine treatment for this opinion (using all signals)
-                        combined_signals = body_signals + (footnote_signals if parsed.footnote_text else [])
+                        combined_signals = body_signals + (
+                            footnote_signals if parsed.footnote_text else []
+                        )
                         op_treatment, _ = self._aggregate_signals(combined_signals)
 
                     except Exception as e:
-                        logger.warning(f"Failed to parse html_lawbox, falling back to plain text: {e}")
+                        logger.warning(
+                            f"Failed to parse html_lawbox, falling back to plain text: {e}"
+                        )
                         # Fallback to plain text
                         op_text = opinion.get("plain_text") or opinion.get("snippet") or ""
                         if op_text:
@@ -496,11 +511,16 @@ class TreatmentClassifier:
                             # Extract signals from footnotes if detected
                             if parsed.footnote_text:
                                 footnote_signals = self.extract_signals(
-                                    parsed.footnote_text, target_citation, op_type, location_type="footnote"
+                                    parsed.footnote_text,
+                                    target_citation,
+                                    op_type,
+                                    location_type="footnote",
                                 )
                                 all_signals.extend(footnote_signals)
 
-                            combined_signals = body_signals + (footnote_signals if parsed.footnote_text else [])
+                            combined_signals = body_signals + (
+                                footnote_signals if parsed.footnote_text else []
+                            )
                             op_treatment, _ = self._aggregate_signals(combined_signals)
 
                         except Exception as e:
@@ -602,22 +622,41 @@ class TreatmentClassifier:
             elif final_treatment == TreatmentType.POSITIVE:
                 treatment_context = "majority_positive"
 
-        # 3. Determine primary location type and apply footnote confidence adjustment
+        # 3. Determine primary location type and apply body precedence
+        # Per requirements: body text signals take precedence over footnote signals
         body_signals = [s for s in all_signals if s.location_type == "body"]
         footnote_signals = [s for s in all_signals if s.location_type == "footnote"]
 
         # Determine primary location based on where signals were found
-        primary_location = "body"
-        if footnote_signals and not body_signals:
+        primary_location: LocationType = "body"
+
+        if body_signals and footnote_signals:
+            # Body signals take precedence over footnote signals
+            body_treatment, body_conf = self._aggregate_signals(body_signals, court_weight)
+            footnote_treatment, footnote_conf = self._aggregate_signals(
+                footnote_signals, court_weight
+            )
+
+            # If body has clear treatment (not neutral), it takes precedence
+            if body_treatment != TreatmentType.NEUTRAL:
+                # Body treatment overrides if final_treatment differs
+                if final_treatment != body_treatment:
+                    logger.info(
+                        f"Body treatment ({body_treatment.value}) takes precedence over "
+                        f"combined treatment ({final_treatment.value}) for "
+                        f"{citing_case.get('caseName', 'Unknown')}"
+                    )
+                    final_treatment = body_treatment
+                    final_confidence = body_conf
+                    if body_treatment == TreatmentType.NEGATIVE:
+                        treatment_context = "majority_negative"
+                    elif body_treatment == TreatmentType.POSITIVE:
+                        treatment_context = "majority_positive"
+            elif footnote_treatment != TreatmentType.NEUTRAL:
+                # Only footnotes have clear signals
+                primary_location = "footnote"
+        elif footnote_signals and not body_signals:
             primary_location = "footnote"
-        elif body_signals and footnote_signals:
-            # If signals in both, prioritize body unless footnotes have stronger signals
-            body_treatment, body_conf = self._aggregate_signals(body_signals)
-            footnote_treatment, footnote_conf = self._aggregate_signals(footnote_signals)
-            if footnote_treatment == TreatmentType.NEGATIVE and body_treatment != TreatmentType.NEGATIVE:
-                primary_location = "footnote"
-            elif footnote_conf > body_conf and footnote_treatment == final_treatment:
-                primary_location = "footnote"
 
         # Apply confidence adjustment if negative signals are found only in footnotes
         # Per requirements: downgrade confidence by 0.2 for footnote-only negative signals
@@ -629,8 +668,10 @@ class TreatmentClassifier:
             if negative_in_footnotes and not negative_in_body:
                 # Negative signals found ONLY in footnotes - reduce confidence
                 logger.info(
-                    f"Negative treatment signals found only in footnotes for {citing_case.get('caseName', 'Unknown')}. "
-                    f"Reducing confidence from {final_confidence:.2f} to {max(0.0, final_confidence - 0.2):.2f}"
+                    f"Negative treatment signals found only in footnotes for "
+                    f"{citing_case.get('caseName', 'Unknown')}. "
+                    f"Reducing confidence from {final_confidence:.2f} to "
+                    f"{max(0.0, final_confidence - 0.2):.2f}"
                 )
                 final_confidence = max(0.0, final_confidence - 0.2)
                 primary_location = "footnote"

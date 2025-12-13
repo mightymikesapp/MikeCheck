@@ -552,7 +552,8 @@ class TreatmentClassifier:
             treatment_context = "majority_negative"
             final_treatment = TreatmentType.NEGATIVE
             _, conf = self._aggregate_signals(
-                [s for s in all_signals if s.opinion_type == "majority"]
+                [s for s in all_signals if s.opinion_type == "majority"],
+                court_weight,
             )
             final_confidence = conf
 
@@ -560,7 +561,8 @@ class TreatmentClassifier:
             treatment_context = "majority_positive"
             final_treatment = TreatmentType.POSITIVE
             _, conf = self._aggregate_signals(
-                [s for s in all_signals if s.opinion_type == "majority"]
+                [s for s in all_signals if s.opinion_type == "majority"],
+                court_weight,
             )
             final_confidence = conf
             if dissent_treatment == TreatmentType.NEGATIVE:

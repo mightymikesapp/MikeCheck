@@ -320,7 +320,11 @@ class CourtListenerClient:
         Returns:
             Full text of the opinion (plain text or HTML format depending on preference)
         """
-        cache_key = {"opinion_id": opinion_id, "field": "full_text"}
+        cache_key = {
+            "opinion_id": opinion_id,
+            "field": "full_text",
+            "prefer_html": prefer_html,
+        }
 
         # Check cache
         cached_text = await self.cache_manager.aget(CacheType.TEXT, cache_key)
@@ -331,7 +335,7 @@ class CourtListenerClient:
             logger,
             tool_name="get_opinion_full_text",
             request_id=request_id,
-            query_params={"opinion_id": opinion_id},
+            query_params={"opinion_id": opinion_id, "prefer_html": prefer_html},
             event="courtlistener_full_text",
         ):
             try:

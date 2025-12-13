@@ -3,8 +3,11 @@
 import pytest
 
 from app.analysis.citation_network import (
+    CaseNode,
+    CitationEdge,
     CitationNetwork,
     CitationNetworkBuilder,
+    propagate_negative_treatment,
 )
 
 
@@ -343,3 +346,79 @@ def test_network_with_duplicate_citations():
     # Should handle gracefully - last one wins in nodes dict
     assert len(network.nodes) >= 2  # At least root and citing cases
     assert network.root_citation == "410 U.S. 113"
+
+
+def test_propagate_negative_treatment_transitive():
+    """Downstream cases relying solely on invalidated authority should be flagged."""
+
+    def _case(citation: str) -> CaseNode:
+        return CaseNode(
+            citation=citation,
+            case_name=f"Case {citation}",
+            date_filed=None,
+            court=None,
+            cluster_id=None,
+            opinion_ids=[],
+            metadata={},
+        )
+
+    nodes = {
+        citation: _case(citation)
+        for citation in ["A", "B", "C", "D", "E", "F"]
+    }
+
+    edges = [
+        CitationEdge(
+            from_citation="A",
+            to_citation="B",
+            depth=1,
+            treatment="overruled",
+            confidence=1.0,
+            excerpt="",
+        ),
+        CitationEdge(
+            from_citation="C",
+            to_citation="B",
+            depth=1,
+            treatment=None,
+            confidence=0.0,
+            excerpt="",
+        ),
+        CitationEdge(
+            from_citation="D",
+            to_citation="C",
+            depth=2,
+            treatment=None,
+            confidence=0.0,
+            excerpt="",
+        ),
+        CitationEdge(
+            from_citation="E",
+            to_citation="B",
+            depth=1,
+            treatment=None,
+            confidence=0.0,
+            excerpt="",
+        ),
+        CitationEdge(
+            from_citation="E",
+            to_citation="F",
+            depth=1,
+            treatment=None,
+            confidence=0.0,
+            excerpt="",
+        ),
+    ]
+
+    network = CitationNetwork(
+        root_citation="A",
+        nodes=nodes,
+        edges=edges,
+        depth_map={citation: 0 for citation in nodes},
+        citing_counts={},
+        cited_counts={},
+    )
+
+    suspects = propagate_negative_treatment(network)
+
+    assert suspects == ["C", "D"]

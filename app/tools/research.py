@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from fastmcp import FastMCP
 
+from app.analysis.deep_shepard import DeepShepardAnalyzer
 from app.analysis.issue_discovery import IssueDiscoverer
 from app.analysis.mermaid_generator import MermaidGenerator
 from app.config import get_settings
@@ -139,17 +140,51 @@ async def _analyze_citation(
         )
 
         mermaid = None
+        deep_shepard_results = None
         if "error" not in network and network.get("nodes"):
             mermaid = mermaid_generator.generate_flowchart(network)
 
+            # Run deep shepardizing analysis
+            from app.analysis.deep_shepard import DeepShepardAnalyzer, reconstruct_citation_network
+
+            citation_network_obj = reconstruct_citation_network(network)
+            if citation_network_obj:
+                analyzer = DeepShepardAnalyzer()
+                deep_shepard_results = analyzer.analyze(
+                    citation_network_obj, request_id=request_id, job_id=job_id
+                )
+
         case_summary = treatment.get("summary") if isinstance(treatment, dict) else None
+
+        # Add deep shepard warnings to summary if there are high-risk cases
+        if deep_shepard_results:
+            high_risk_cases = [
+                status
+                for status in deep_shepard_results.values()
+                if status.get("risk_score", 0.0) >= 0.7
+            ]
+            if high_risk_cases:
+                deep_shepard_warnings = [
+                    f"⚠️ Deep Shepardizing Warning: {status['citation']} ({status.get('case_name', 'Unknown')}) "
+                    f"has risk score {status['risk_score']:.2f} - {status.get('recommendation', '')}"
+                    for status in high_risk_cases
+                ]
+                if case_summary:
+                    case_summary += "\n\n" + "\n".join(deep_shepard_warnings)
+                else:
+                    case_summary = "\n".join(deep_shepard_warnings)
+
         log_event(
             logger,
             "Completed research aggregation for citation",
             tool_name="research_pipeline_case",
             request_id=request_id,
             query_params=query_params,
-            extra_context={"case_name": lookup.get("caseName"), "has_mermaid": bool(mermaid)},
+            extra_context={
+                "case_name": lookup.get("caseName"),
+                "has_mermaid": bool(mermaid),
+                "deep_shepard_suspects": len(deep_shepard_results) if deep_shepard_results else 0,
+            },
         )
 
         return {
@@ -161,6 +196,7 @@ async def _analyze_citation(
             "network": network,
             "mermaid": mermaid,
             "summary": case_summary,
+            "deep_shepard_analysis": deep_shepard_results,
         }
 
 

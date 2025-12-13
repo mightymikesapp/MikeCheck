@@ -163,3 +163,27 @@ class CitationNetworkResult(TypedDict, total=False):
     incomplete_data: NotRequired[bool]
     error: NotRequired[str]
     job_id: NotRequired[str | None]
+
+
+class SuspectReliance(TypedDict, total=False):
+    """Details about a suspect reliance on a compromised case."""
+
+    bad_case_citation: str
+    bad_case_name: str | None
+    reliance_treatment: str
+    reliance_confidence: float
+    reliance_excerpt: str
+    negative_signal: str
+    negative_weight: float
+
+
+class IndirectTreatmentStatus(TypedDict, total=False):
+    """Indirect treatment status for cases relying on compromised authority."""
+
+    citation: str
+    case_name: str | None
+    risk_score: float
+    risk_level: str  # "high", "medium", "low"
+    reasons: list[str]
+    suspect_reliances: list[SuspectReliance]
+    recommendation: str

@@ -7,7 +7,7 @@ provide sufficient confidence.
 
 import logging
 from threading import Lock
-from typing import Any
+from typing import Any, Optional
 
 from app.analysis.treatment_classifier import TreatmentType
 
@@ -30,6 +30,8 @@ class MLTreatmentClassifier:
     _instance: "MLTreatmentClassifier | None" = None
     _lock: Lock = Lock()
     _model_loaded: bool = False
+    _pipeline: Optional[Any]
+    _load_failed: bool
 
     def __new__(cls) -> "MLTreatmentClassifier":
         """Ensure singleton pattern for model loading."""
@@ -50,6 +52,7 @@ class MLTreatmentClassifier:
                 return
 
             self._pipeline = None
+            self._load_failed = False
             self._labels = [
                 "overruled",
                 "distinguished",
@@ -75,7 +78,7 @@ class MLTreatmentClassifier:
 
     def _load_model(self) -> None:
         """Load the transformer model (lazy initialization)."""
-        if self._pipeline is not None:
+        if self._pipeline is not None or self._load_failed:
             return
 
         try:
@@ -104,8 +107,7 @@ class MLTreatmentClassifier:
         except Exception as e:
             logger.error("Failed to load ML classifier model", extra={"error": str(e)})
             logger.info("ML classifier will be disabled")
-            # Set to a dummy value to prevent repeated loading attempts
-            self._pipeline = False
+            self._load_failed = True
 
     def classify_treatment(
         self,
@@ -128,11 +130,11 @@ class MLTreatmentClassifier:
                 - all_scores: dict[str, float] (scores for all labels)
         """
         # Lazy load model on first use
-        if self._pipeline is None:
+        if self._pipeline is None and not self._load_failed:
             self._load_model()
 
         # If model loading failed, return neutral with low confidence
-        if self._pipeline is False:
+        if self._pipeline is None or self._load_failed:
             logger.warning("ML classifier disabled due to model loading failure")
             return {
                 "treatment_type": TreatmentType.NEUTRAL,
@@ -203,14 +205,14 @@ class MLTreatmentClassifier:
         Returns:
             True if the model can be loaded/used, False otherwise
         """
-        if self._pipeline is False:
+        if self._load_failed:
             return False
 
         if self._pipeline is None:
             # Try to load it
             self._load_model()
 
-        return self._pipeline is not False and self._pipeline is not None
+        return self._pipeline is not None
 
 
 # Global singleton instance

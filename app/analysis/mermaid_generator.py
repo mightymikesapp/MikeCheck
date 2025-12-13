@@ -153,7 +153,7 @@ class MermaidGenerator:
         cleaned = "".join(ch if ch.isalnum() else "_" for ch in key)
         return cleaned or "unknown"
 
-    def _sanitize_label(self, text: str, max_length: int = 40) -> str:
+    def _sanitize_label(self, text: str | None, max_length: int = 40) -> str:
         """Sanitize text for use in Mermaid node labels."""
         if not text:
             return "Unknown"
@@ -245,10 +245,12 @@ class MermaidGenerator:
             node_id = self._get_node_id(citation)
             node_map[citation] = node_id
 
-            case_name = self._sanitize_label(node["case_name"], max_length=30)
+            case_name = self._sanitize_label(node.get("case_name"), max_length=30)
             label_parts = [case_name]
-            if include_dates and node.get("date_filed"):
-                label_parts.append(node["date_filed"][:4])
+            if include_dates:
+                date_filed = node.get("date_filed")
+                if date_filed:
+                    label_parts.append(date_filed[:4])
 
             label = (
                 f"{label_parts[0]}<br/>{label_parts[1]}" if len(label_parts) > 1 else label_parts[0]
@@ -280,7 +282,7 @@ class MermaidGenerator:
                 continue
 
             treatment = edge.get("treatment")
-            confidence = edge.get("confidence", 0)
+            confidence = edge.get("confidence") or 0
             edge_text = (
                 f"{self._sanitize_label(treatment, 15)}"
                 if (treatment and confidence > 0)
@@ -348,7 +350,7 @@ class MermaidGenerator:
 
             for node in nodes:
                 node_id = node_map[node["citation"]]
-                case_name = self._sanitize_label(node["case_name"], max_length=30)
+                case_name = self._sanitize_label(node.get("case_name"), max_length=30)
 
                 # Apply court coloring class
                 class_suffix = f":::court_{level.value}"
@@ -388,7 +390,7 @@ class MermaidGenerator:
     def generate_mindmap(self, network: CitationNetworkResult) -> str:
         """Generate a radial mindmap diagram."""
         lines = ["mindmap"]
-        lines.append("  root((" + self._sanitize_label(network["root_case_name"]) + "))")
+        lines.append("  root((" + self._sanitize_label(network.get("root_case_name")) + "))")
 
         # Organize by court level for the first ring
         citing_nodes = [n for n in network["nodes"] if n["citation"] != network["root_citation"]]
@@ -402,7 +404,7 @@ class MermaidGenerator:
         for level, nodes in by_level.items():
             lines.append(f"    {level.name}")
             for node in nodes:
-                case_name = self._sanitize_label(node["case_name"], max_length=25)
+                case_name = self._sanitize_label(node.get("case_name"), max_length=25)
                 # Find treatment for annotation
                 treatment = ""
                 for edge in network["edges"]:
@@ -443,13 +445,15 @@ class MermaidGenerator:
             if treatment_filter and treatment not in treatment_filter:
                 continue
 
-            case_name = self._sanitize_label(node["case_name"], max_length=20)
+            case_name = self._sanitize_label(node.get("case_name"), max_length=20)
             if year not in timeline_data:
                 timeline_data[year] = []
             timeline_data[year].append((case_name, treatment))
 
         lines = ["timeline"]
-        lines.append(f"    title History of {self._sanitize_label(network['root_case_name'])}")
+        lines.append(
+            f"    title History of {self._sanitize_label(network.get('root_case_name'))}"
+        )
 
         for year in sorted(timeline_data.keys()):
             cases = timeline_data[year]
@@ -550,7 +554,7 @@ class MermaidGenerator:
             court_level = get_court_level(node.get("court")).value
 
             lines.append(f'    <node id="{escape(node_id)}">')
-            lines.append(f'      <data key="d0">{escape(node["case_name"])}</data>')
+            lines.append(f'      <data key="d0">{escape(node.get("case_name") or "")}</data>')
             lines.append(f'      <data key="d1">{escape(str(node.get("court", "")))}</data>')
             lines.append(f'      <data key="d2">{court_level}</data>')
             lines.append(f'      <data key="d3">{escape(str(node.get("date_filed", "")))}</data>')
@@ -564,7 +568,7 @@ class MermaidGenerator:
             )
             lines.append(f'      <data key="d4">{escape(str(edge.get("treatment", "")))}</data>')
             lines.append(f'      <data key="d5">{edge.get("confidence", 0.0)}</data>')
-            lines.append(f'      <data key="d6">{escape(edge.get("excerpt", ""))}</data>')
+            lines.append(f'      <data key="d6">{escape(str(edge.get("excerpt", "")))}</data>')
             lines.append("    </edge>")
 
         lines.append("  </graph>")

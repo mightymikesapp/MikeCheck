@@ -161,7 +161,7 @@ async def _analyze_citation(
             high_risk_cases = [
                 status
                 for status in deep_shepard_results.values()
-                if status.get("risk_score", 0.0) >= 0.7
+                if status.get("risk_score", 0.0) >= analyzer.high_risk_threshold
             ]
             if high_risk_cases:
                 deep_shepard_warnings = [

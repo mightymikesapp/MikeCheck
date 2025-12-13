@@ -6,6 +6,7 @@ This module analyzes how citing cases treat a target case, classifying treatment
 - Neutral: Case is cited without clear positive or negative treatment
 """
 
+import bisect
 import functools
 import logging
 import re
@@ -312,28 +313,94 @@ class TreatmentClassifier:
             supplied ``opinion_type``.
         """
         signals: list[TreatmentSignal] = []
-        contexts = self._extract_citation_contexts(text, citation)
 
-        for context, position in contexts:
-            # Use combined regex for single-pass extraction (O(L) instead of O(L*P))
-            # Removed redundant negative_patterns and positive_patterns loops (Bottleneck #1 fix)
-            for match in self.combined_signal_pattern.finditer(context):
+        # 1. Find all citation matches
+        patterns = self._get_citation_patterns(citation)
+        citation_matches = []
+        for pattern in patterns:
+            for match in pattern.finditer(text):
+                citation_matches.append(match)
+
+        if not citation_matches:
+            # Fallback: scan beginning of text if no citation found
+            # Matches original behavior of checking text[:500]
+            search_regions = [(0, min(500, len(text)))]
+            citation_positions = [0]
+        else:
+            # Sort matches by start position
+            citation_matches.sort(key=lambda m: m.start())
+            citation_positions = [m.start() for m in citation_matches]
+
+            # 2. Calculate search regions (merge overlapping windows)
+            window = 400
+            regions = []
+            for match in citation_matches:
+                start = max(0, match.start() - window)
+                end = min(len(text), match.end() + window)
+                regions.append((start, end))
+
+            # Merge regions
+            merged_regions = []
+            if regions:
+                curr_start, curr_end = regions[0]
+                for start, end in regions[1:]:
+                    if start <= curr_end:  # Overlap or adjacent
+                        curr_end = max(curr_end, end)
+                    else:
+                        merged_regions.append((curr_start, curr_end))
+                        curr_start, curr_end = start, end
+                merged_regions.append((curr_start, curr_end))
+            search_regions = merged_regions
+
+        # 3. Scan regions for signals
+        for start, end in search_regions:
+            region_text = text[start:end]
+
+            for match in self.combined_signal_pattern.finditer(region_text):
+                # match.start() is relative to region_text start
+                # Absolute position
+                abs_start = start + match.start()
+
+                # Check for negation
+                # _is_negated checks text[...:position] relative to the passed text
+                if self._is_negated(region_text, match.start()):
+                    continue
+
                 group_name = match.lastgroup
                 if not group_name:
                     continue
 
                 signal, _, treatment_type = self.group_map[group_name]
 
-                # Check for negation
-                if self._is_negated(context, match.start()):
-                    continue
+                # Find nearest citation for 'position' field
+                # citation_positions is sorted.
+                # Use bisect to find insertion point
+                idx = bisect.bisect_left(citation_positions, abs_start)
+                # Candidates: idx-1 and idx
+                candidates = []
+                if idx < len(citation_positions):
+                    candidates.append(citation_positions[idx])
+                if idx > 0:
+                    candidates.append(citation_positions[idx - 1])
+
+                nearest_pos = candidates[0] if candidates else 0
+                if len(candidates) > 1:
+                    # Pick closest
+                    if abs(candidates[1] - abs_start) < abs(candidates[0] - abs_start):
+                        nearest_pos = candidates[1]
+
+                # Create context excerpt centered on signal
+                # +/- 100 chars
+                ctx_start = max(0, match.start() - 100)
+                ctx_end = min(len(region_text), match.end() + 100)
+                excerpt = region_text[ctx_start:ctx_end]
 
                 signals.append(
                     TreatmentSignal(
                         signal=signal,
                         treatment_type=treatment_type,
-                        position=position,
-                        context=context[:200],  # First 200 chars
+                        position=nearest_pos,
+                        context=excerpt,
                         opinion_type=opinion_type,
                     )
                 )
@@ -586,27 +653,6 @@ class TreatmentClassifier:
             treatment_context=overall_context,
             treatment_by_opinion_type=dict(breakdown),
         )
-
-    def _extract_citation_contexts(
-        self,
-        text: str,
-        citation: str,
-        window: int = 400,
-    ) -> list[tuple[str, int]]:
-        """Extract context windows around mentions of the citation."""
-        contexts = []
-
-        # Get cached patterns
-        patterns_to_try = self._get_citation_patterns(citation)
-
-        for pattern in patterns_to_try:
-            for match in pattern.finditer(text):
-                start = max(0, match.start() - window)
-                end = min(len(text), match.end() + window)
-                context = text[start:end]
-                contexts.append((context, match.start()))
-
-        return contexts if contexts else [(text[:500], 0)]
 
     def _aggregate_signals(
         self,

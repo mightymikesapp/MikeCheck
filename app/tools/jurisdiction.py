@@ -85,7 +85,7 @@ async def find_circuit_splits_impl(
         )
 
         # Step 2: Get citing cases (use larger limit to get good circuit coverage)
-        citing_limit = min(settings.max_citing_cases, 200)
+        citing_limit = min(settings.max_citing_cases, 200)  # TODO: Use a constant
         citing_cases_result = await client.find_citing_cases(
             citation, limit=citing_limit, request_id=request_id
         )

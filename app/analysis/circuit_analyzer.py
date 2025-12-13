@@ -262,10 +262,13 @@ class CircuitAnalyzer:
             Tuple of CircuitSplit if split detected (None otherwise) and the count of
             circuits analyzed
         """
+        circuits_analyzed_count = 0
+
         if len(cases) != len(treatments):
             logger.warning(
                 f"Mismatched cases and treatments: {len(cases)} cases, {len(treatments)} treatments"
             )
+            return None, circuits_analyzed_count
             return None, 0
 
         # Group by circuit

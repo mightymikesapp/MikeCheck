@@ -42,8 +42,7 @@ async def find_circuit_splits_impl(
     Args:
         citation: Citation to analyze (e.g., "410 U.S. 113")
         min_cases_per_circuit: Minimum citing cases needed per circuit (default: 2)
-        split_threshold: Minimum fraction required for a dominant treatment classification
-            (default: 0.6)
+        split_threshold: Minimum fraction required for a dominant treatment classification (default: 0.6)
         request_id: Optional request ID for logging
         job_id: Optional job ID for tracking
 

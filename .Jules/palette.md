@@ -10,3 +10,6 @@
 ## 2025-12-13 - HTMX Loading States with Group Modifiers
 **Learning:** `hx-disabled-elt` combined with the `.htmx-request` class on a parent `group` allows for elegant, no-JS loading states with distinct "disabled" vs "loading" visual treatments.
 **Action:** Use `group` on HTMX forms and `group-[.htmx-request]:hidden/flex` on button children to toggle content without complex CSS selectors.
+## 2025-12-14 - Scoping Tooltips with Peer vs Group Hover
+**Learning:** Using `group-hover` on a container (like a table row) to trigger a tooltip for a child element causes visual noise, as the tooltip appears when hovering irrelevant parts of the container.
+**Action:** Use `peer-hover` on the specific trigger element (alongside `peer-focus`) to ensure tooltips only appear when the user intentionally interacts with the target.

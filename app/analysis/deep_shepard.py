@@ -406,6 +406,7 @@ class DeepShepardAnalyzer:
         # Normalize by number of reliances, but cap at 1.0
         # More suspect reliances increase risk but with diminishing returns
         avg_risk = total_risk / len(reliances)
+        # Amplify risk for multiple suspect reliances, capped at a 1.5x multiplier.
         multiplier = min(1.0 + (len(reliances) - 1) * 0.2, 1.5)
 
         final_risk = min(avg_risk * multiplier, 1.0)

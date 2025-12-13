@@ -14,6 +14,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 
+from app.analysis.document_processing import FootnoteParser
 from app.types import CourtListenerCase, TreatmentStats
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class TreatmentSignal:
     position: int
     context: str
     opinion_type: str = "majority"  # majority, concurrence, dissent
+    location_type: str = "body"  # body or footnote
 
 
 @dataclass
@@ -59,6 +61,7 @@ class TreatmentAnalysis:
     date_filed: str | None = None
     treatment_context: str = "unknown"  # majority, dissent_only, mixed, etc.
     opinion_breakdown: dict[str, TreatmentType] = field(default_factory=dict)
+    location_type: str = "body"  # body or footnote - indicates primary location of signals
 
 
 @dataclass
@@ -296,7 +299,7 @@ class TreatmentClassifier:
         return patterns
 
     def extract_signals(
-        self, text: str, citation: str, opinion_type: str = "majority"
+        self, text: str, citation: str, opinion_type: str = "majority", location_type: str = "body"
     ) -> list[TreatmentSignal]:
         """Extract treatment signals for a specific citation.
 
@@ -306,11 +309,12 @@ class TreatmentClassifier:
             text: Text to search for mentions of the citation.
             citation: Citation string to locate and analyze within the text.
             opinion_type: Opinion category to attach to extracted signals (e.g., "majority", "dissent", "concurrence").
+            location_type: Location of the text (e.g., "body", "footnote") to track citation authority.
 
         Returns:
             A list of :class:`TreatmentSignal` instances including the normalized signal
             name, inferred treatment type, position, a context excerpt, and the
-            supplied ``opinion_type``.
+            supplied ``opinion_type`` and ``location_type``.
         """
         signals: list[TreatmentSignal] = []
 
@@ -402,6 +406,7 @@ class TreatmentClassifier:
                         position=nearest_pos,
                         context=excerpt,
                         opinion_type=opinion_type,
+                        location_type=location_type,
                     )
                 )
 
@@ -439,21 +444,80 @@ class TreatmentClassifier:
         elif citing_case.get("opinions"):
             # Process structured opinions
             for opinion in citing_case["opinions"]:
-                # Opinion text might be in snippet, plain_text, or html
-                op_text = (
-                    opinion.get("snippet")
-                    or opinion.get("plain_text")
-                    or str(opinion.get("html_lawbox") or "")
-                )
-                if not op_text:
-                    continue
-
                 op_type = self._map_opinion_type(opinion.get("type"))
-                signals = self.extract_signals(op_text, target_citation, op_type)
-                all_signals.extend(signals)
 
-                # Determine treatment for this specific opinion
-                op_treatment, _ = self._aggregate_signals(signals)
+                # Try to parse HTML to separate body from footnotes
+                html_lawbox = opinion.get("html_lawbox")
+                if html_lawbox:
+                    try:
+                        # Parse HTML to separate body and footnotes
+                        parsed = FootnoteParser.parse_html(html_lawbox)
+
+                        # Extract signals from body
+                        body_signals = self.extract_signals(
+                            parsed.body_text, target_citation, op_type, location_type="body"
+                        )
+                        all_signals.extend(body_signals)
+
+                        # Extract signals from footnotes
+                        if parsed.footnote_text:
+                            footnote_signals = self.extract_signals(
+                                parsed.footnote_text, target_citation, op_type, location_type="footnote"
+                            )
+                            all_signals.extend(footnote_signals)
+
+                        # Determine treatment for this opinion (using all signals)
+                        combined_signals = body_signals + (footnote_signals if parsed.footnote_text else [])
+                        op_treatment, _ = self._aggregate_signals(combined_signals)
+
+                    except Exception as e:
+                        logger.warning(f"Failed to parse html_lawbox, falling back to plain text: {e}")
+                        # Fallback to plain text
+                        op_text = opinion.get("plain_text") or opinion.get("snippet") or ""
+                        if op_text:
+                            signals = self.extract_signals(op_text, target_citation, op_type)
+                            all_signals.extend(signals)
+                            op_treatment, _ = self._aggregate_signals(signals)
+                        else:
+                            continue
+                else:
+                    # Fallback: Try plain text with heuristic parsing
+                    plain_text = opinion.get("plain_text")
+                    if plain_text:
+                        try:
+                            parsed = FootnoteParser.parse_plain_text_fallback(plain_text)
+
+                            # Extract signals from body
+                            body_signals = self.extract_signals(
+                                parsed.body_text, target_citation, op_type, location_type="body"
+                            )
+                            all_signals.extend(body_signals)
+
+                            # Extract signals from footnotes if detected
+                            if parsed.footnote_text:
+                                footnote_signals = self.extract_signals(
+                                    parsed.footnote_text, target_citation, op_type, location_type="footnote"
+                                )
+                                all_signals.extend(footnote_signals)
+
+                            combined_signals = body_signals + (footnote_signals if parsed.footnote_text else [])
+                            op_treatment, _ = self._aggregate_signals(combined_signals)
+
+                        except Exception as e:
+                            logger.warning(f"Failed to parse plain text for footnotes: {e}")
+                            # Final fallback: treat entire text as body
+                            signals = self.extract_signals(plain_text, target_citation, op_type)
+                            all_signals.extend(signals)
+                            op_treatment, _ = self._aggregate_signals(signals)
+                    else:
+                        # Last resort: use snippet
+                        op_text = opinion.get("snippet") or ""
+                        if not op_text:
+                            continue
+                        signals = self.extract_signals(op_text, target_citation, op_type)
+                        all_signals.extend(signals)
+                        op_treatment, _ = self._aggregate_signals(signals)
+
                 # Only record if meaningful (not neutral/unknown, unless it's the only one)
                 if op_treatment != TreatmentType.NEUTRAL or op_type not in opinion_breakdown:
                     opinion_breakdown[op_type] = op_treatment
@@ -536,6 +600,39 @@ class TreatmentClassifier:
             elif final_treatment == TreatmentType.POSITIVE:
                 treatment_context = "majority_positive"
 
+        # 3. Determine primary location type and apply footnote confidence adjustment
+        body_signals = [s for s in all_signals if s.location_type == "body"]
+        footnote_signals = [s for s in all_signals if s.location_type == "footnote"]
+
+        # Determine primary location based on where signals were found
+        primary_location = "body"
+        if footnote_signals and not body_signals:
+            primary_location = "footnote"
+        elif body_signals and footnote_signals:
+            # If signals in both, prioritize body unless footnotes have stronger signals
+            body_treatment, body_conf = self._aggregate_signals(body_signals)
+            footnote_treatment, footnote_conf = self._aggregate_signals(footnote_signals)
+            if footnote_treatment == TreatmentType.NEGATIVE and body_treatment != TreatmentType.NEGATIVE:
+                primary_location = "footnote"
+            elif footnote_conf > body_conf and footnote_treatment == final_treatment:
+                primary_location = "footnote"
+
+        # Apply confidence adjustment if negative signals are found only in footnotes
+        # Per requirements: downgrade confidence by 0.2 for footnote-only negative signals
+        negative_signals = [s for s in all_signals if s.treatment_type == TreatmentType.NEGATIVE]
+        if negative_signals:
+            negative_in_body = any(s.location_type == "body" for s in negative_signals)
+            negative_in_footnotes = any(s.location_type == "footnote" for s in negative_signals)
+
+            if negative_in_footnotes and not negative_in_body:
+                # Negative signals found ONLY in footnotes - reduce confidence
+                logger.info(
+                    f"Negative treatment signals found only in footnotes for {citing_case.get('caseName', 'Unknown')}. "
+                    f"Reducing confidence from {final_confidence:.2f} to {max(0.0, final_confidence - 0.2):.2f}"
+                )
+                final_confidence = max(0.0, final_confidence - 0.2)
+                primary_location = "footnote"
+
         excerpt = self._extract_best_excerpt("", target_citation, all_signals)
 
         return TreatmentAnalysis(
@@ -549,6 +646,7 @@ class TreatmentClassifier:
             date_filed=citing_case.get("dateFiled"),
             treatment_context=treatment_context,
             opinion_breakdown=opinion_breakdown,
+            location_type=primary_location,
         )
 
     def aggregate_treatments(

@@ -14,7 +14,7 @@ from app.types import CourtListenerCase
 
 logger = logging.getLogger(__name__)
 
-NEGATIVE_TREATMENT_LABELS: set[str] = {
+NEGATIVE_TREATMENT_LABELS: frozenset[str] = frozenset({
     "overruled",
     "abrogated",
     "overturned",
@@ -22,7 +22,7 @@ NEGATIVE_TREATMENT_LABELS: set[str] = {
     "vacated",
     "superseded",
     "no longer good law",
-}
+})
 
 
 @dataclass

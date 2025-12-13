@@ -155,7 +155,7 @@ class FootnoteParser(HTMLParser):
 
             if in_footnote_section or has_footnote_ref:
                 footnote_lines.append(line_stripped)
-                if current_footnote_num and in_footnote_section:
+                if current_footnote_num and in_footnote_section and not has_footnote_ref:
                     # Continue adding to current footnote
                     footnotes[current_footnote_num] += " " + line_stripped
             else:

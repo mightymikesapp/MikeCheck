@@ -42,6 +42,7 @@ async def find_circuit_splits_impl(
     Args:
         citation: Citation to analyze (e.g., "410 U.S. 113")
         min_cases_per_circuit: Minimum citing cases needed per circuit (default: 2)
+        split_threshold: Minimum fraction required for a dominant treatment classification
         split_threshold: Fraction of treatments required for a dominant stance
             (default: 0.6)
         split_threshold: Threshold for determining dominant treatment (default: 0.6)
@@ -221,6 +222,7 @@ async def find_circuit_splits_impl(
             "key_cases": split.key_cases,
             "supreme_court_likely": split.supreme_court_likely,
             "total_citing_cases": len(citing_cases),
+            "circuits_analyzed": circuits_analyzed,
             "job_id": job_id,
             "recommendation": (
                 "STRONG SPLIT: Supreme Court review likely"
@@ -253,6 +255,7 @@ async def find_circuit_splits(
         citation: The citation to analyze (e.g., "410 U.S. 113" or "Roe v. Wade")
         min_cases_per_circuit: Minimum citing cases needed per circuit to consider it
             (default: 2). Lower values may detect more splits but with less confidence.
+        split_threshold: Minimum fraction required for a dominant treatment classification
         split_threshold: Fraction of treatments required for a dominant stance
             (default: 0.6).
         split_threshold: Threshold for determining dominant treatment (default: 0.6)

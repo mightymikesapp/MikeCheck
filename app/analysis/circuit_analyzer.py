@@ -259,6 +259,11 @@ class CircuitAnalyzer:
             treatments: Treatment analyses (must match cases 1:1)
 
         Returns:
+            Tuple of CircuitSplit if split detected (None otherwise) and the count of
+            circuits analyzed
+        """
+        circuits_analyzed_count = 0
+
             Tuple of (CircuitSplit if split detected, circuits analyzed)
             Tuple containing CircuitSplit if split detected (or None) and the number
             of circuits analyzed
@@ -286,6 +291,8 @@ class CircuitAnalyzer:
         circuits_analyzed_count = len(circuit_treatments)
 
         # Need at least 2 circuits to have a split
+        if circuits_analyzed_count < 2:
+            return None, circuits_analyzed_count
         circuits_analyzed_count = len(circuit_treatments)
 
         if circuits_analyzed_count < 2:

@@ -80,7 +80,8 @@ def test_parse_plain_text_fallback_with_footnotes():
     # Footnotes should be detected
     assert "first footnote" in result.footnote_text
     assert "second footnote" in result.footnote_text
-    assert "1" in result.footnotes or len(result.footnotes) > 0
+    assert "1" in result.footnotes, "Expected footnote '1' to be detected"
+    assert len(result.footnotes) >= 1
 
 
 @pytest.mark.unit

@@ -7,6 +7,7 @@ serving as a free alternative to Shepard's Citations and KeyCite.
 import asyncio
 import logging
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from datetime import datetime
 from typing import Any, cast
 
@@ -28,22 +29,39 @@ classifier = TreatmentClassifier()
 _classification_executor: ProcessPoolExecutor | None = None
 
 # ML classifier (lazy loaded)
-_ml_classifier = None
+_ml_classifier: Any | None | bool = None
 
 
-def _get_ml_classifier() -> Any:
-    """Get the ML classifier instance (lazy loading)."""
+def _load_ml_classifier() -> Any:
+    """Synchronous helper to load the ML classifier."""
+    from app.analysis.ml_classifier import get_ml_classifier
+
+    return get_ml_classifier()
+
+
+async def _get_ml_classifier() -> Any:
+    """Get the ML classifier instance without blocking the event loop."""
+
     global _ml_classifier
-    if _ml_classifier is None and settings.enable_ml_classifier:
-        try:
-            from app.analysis.ml_classifier import get_ml_classifier
+    if not settings.enable_ml_classifier:
+        return None
 
-            _ml_classifier = get_ml_classifier()
-            logger.info("ML classifier initialized")
-        except Exception as e:
-            logger.warning(f"Failed to initialize ML classifier: {e}")
-            _ml_classifier = False  # Mark as failed to avoid retry
-    return _ml_classifier if _ml_classifier is not False else None
+    if _ml_classifier is False:
+        return None
+
+    if _ml_classifier is not None:
+        return _ml_classifier
+
+    loop = asyncio.get_running_loop()
+    try:
+        _ml_classifier = await loop.run_in_executor(None, _load_ml_classifier)
+        logger.info("ML classifier initialized")
+    except Exception as e:  # pragma: no cover - defensive logging
+        logger.warning(f"Failed to initialize ML classifier: {e}")
+        _ml_classifier = False  # Mark as failed to avoid retry
+        return None
+
+    return _ml_classifier
 
 
 def _classifier_concurrency() -> int:
@@ -96,7 +114,7 @@ async def _classify_parallel(
     )
 
 
-def _refine_with_ml_classifier(
+async def _refine_with_ml_classifier(
     analysis: TreatmentAnalysis,
     citation: str,
 ) -> TreatmentAnalysis:
@@ -109,7 +127,7 @@ def _refine_with_ml_classifier(
     Returns:
         Refined TreatmentAnalysis with potentially updated treatment_type and confidence
     """
-    ml_classifier = _get_ml_classifier()
+    ml_classifier = await _get_ml_classifier()
     if ml_classifier is None:
         return analysis
 
@@ -129,11 +147,14 @@ def _refine_with_ml_classifier(
             return analysis
 
         # Run ML classification
-        ml_result = ml_classifier.classify_treatment(
+        loop = asyncio.get_running_loop()
+        classify = partial(
+            ml_classifier.classify_treatment,
             context_text=context_text,
             citation=citation,
             confidence_threshold=0.5,
         )
+        ml_result = await loop.run_in_executor(None, classify)
 
         # If ML classifier has higher confidence, use its result
         if ml_result["confidence"] > analysis.confidence:
@@ -299,7 +320,7 @@ async def check_case_validity_impl(
                 if isinstance(analysis, BaseException):
                     refined_analyses.append(analysis)
                 else:
-                    refined = _refine_with_ml_classifier(analysis, citation)
+                    refined = await _refine_with_ml_classifier(analysis, citation)
                     refined_analyses.append(refined)
             analyses = refined_analyses
 

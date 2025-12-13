@@ -10,6 +10,8 @@ from app.analysis.citation_network import (
     propagate_negative_treatment,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def sample_cases():

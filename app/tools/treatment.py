@@ -27,6 +27,24 @@ logger = logging.getLogger(__name__)
 classifier = TreatmentClassifier()
 _classification_executor: ProcessPoolExecutor | None = None
 
+# ML classifier (lazy loaded)
+_ml_classifier = None
+
+
+def _get_ml_classifier() -> Any:
+    """Get the ML classifier instance (lazy loading)."""
+    global _ml_classifier
+    if _ml_classifier is None and settings.enable_ml_classifier:
+        try:
+            from app.analysis.ml_classifier import get_ml_classifier
+
+            _ml_classifier = get_ml_classifier()
+            logger.info("ML classifier initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize ML classifier: {e}")
+            _ml_classifier = False  # Mark as failed to avoid retry
+    return _ml_classifier if _ml_classifier is not False else None
+
 
 def _classifier_concurrency() -> int:
     """Return a safe concurrency limit for classification tasks."""
@@ -76,6 +94,82 @@ async def _classify_parallel(
         *(classify(case) for case in cases),
         return_exceptions=True,
     )
+
+
+def _refine_with_ml_classifier(
+    analysis: TreatmentAnalysis,
+    citation: str,
+) -> TreatmentAnalysis:
+    """Refine treatment analysis using ML classifier for ambiguous cases.
+
+    Args:
+        analysis: Initial treatment analysis from regex classifier
+        citation: The citation being analyzed
+
+    Returns:
+        Refined TreatmentAnalysis with potentially updated treatment_type and confidence
+    """
+    ml_classifier = _get_ml_classifier()
+    if ml_classifier is None:
+        return analysis
+
+    # Check if we should use ML classifier
+    if analysis.confidence >= settings.ml_classifier_confidence_threshold:
+        return analysis
+
+    try:
+        # Get the best context from the analysis
+        context_text = analysis.excerpt
+        if not context_text and analysis.signals_found:
+            # Use the context from the strongest signal
+            context_text = analysis.signals_found[0].context
+
+        if not context_text:
+            logger.debug("No context text available for ML classification")
+            return analysis
+
+        # Run ML classification
+        ml_result = ml_classifier.classify_treatment(
+            context_text=context_text,
+            citation=citation,
+            confidence_threshold=0.5,
+        )
+
+        # If ML classifier has higher confidence, use its result
+        if ml_result["confidence"] > analysis.confidence:
+            logger.info(
+                f"ML classifier refined treatment: {analysis.treatment_type.value} "
+                f"(conf={analysis.confidence:.2f}) -> {ml_result['treatment_type'].value} "
+                f"(conf={ml_result['confidence']:.2f})",
+                extra={
+                    "citation": citation,
+                    "case_name": analysis.case_name,
+                    "regex_treatment": analysis.treatment_type.value,
+                    "regex_confidence": analysis.confidence,
+                    "ml_treatment": ml_result["treatment_type"].value,
+                    "ml_confidence": ml_result["confidence"],
+                },
+            )
+
+            # Create refined analysis
+            return TreatmentAnalysis(
+                case_name=analysis.case_name,
+                case_id=analysis.case_id,
+                citation=analysis.citation,
+                treatment_type=ml_result["treatment_type"],
+                confidence=ml_result["confidence"],
+                signals_found=analysis.signals_found,
+                excerpt=analysis.excerpt,
+                date_filed=analysis.date_filed,
+                treatment_context=analysis.treatment_context,
+                opinion_breakdown=analysis.opinion_breakdown,
+            )
+
+        return analysis
+
+    except Exception as e:
+        logger.error(f"ML classifier refinement failed: {e}")
+        return analysis
 
 
 def _coerce_failed_requests(raw_value: Any) -> list[dict[str, object]]:
@@ -196,6 +290,18 @@ async def check_case_validity_impl(
 
         # Parallelize initial analysis (MEDIUM Bottleneck #4 fix)
         analyses = await _classify_parallel(citing_cases, citation)
+
+        # ML Refinement Pass (Smart Second Pass)
+        # If ML classifier is enabled, refine ambiguous cases
+        if settings.enable_ml_classifier:
+            refined_analyses = []
+            for analysis in analyses:
+                if isinstance(analysis, BaseException):
+                    refined_analyses.append(analysis)
+                else:
+                    refined = _refine_with_ml_classifier(analysis, citation)
+                    refined_analyses.append(refined)
+            analyses = refined_analyses
 
         initial_treatments = []
         cases_for_full_text = []

@@ -129,6 +129,14 @@ class Settings(BaseSettings):
         default=10,
         description="Maximum number of full opinion texts to fetch per analysis",
     )
+    enable_ml_classifier: bool = Field(
+        default=False,
+        description="Enable ML-based treatment classifier for high-ambiguity cases (requires transformers)",
+    )
+    ml_classifier_confidence_threshold: float = Field(
+        default=0.6,
+        description="Confidence threshold below which ML classifier is triggered",
+    )
 
     # Citation network settings
     network_max_depth: int = Field(

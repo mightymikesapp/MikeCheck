@@ -154,7 +154,7 @@ async def find_circuit_splits_impl(
         # Step 4: Analyze for circuit splits
         analyzer = CircuitAnalyzer(
             min_cases_per_circuit=min_cases_per_circuit,
-            split_threshold=0.6,
+            split_threshold=0.6,  # TODO: Make this configurable
         )
 
         split = analyzer.detect_circuit_split(citation, case_name, valid_cases, treatments)

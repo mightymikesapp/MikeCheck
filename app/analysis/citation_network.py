@@ -5,7 +5,7 @@ enabling visualization of precedent flow and influence analysis.
 """
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +13,16 @@ from app.logging_utils import log_event
 from app.types import CourtListenerCase
 
 logger = logging.getLogger(__name__)
+
+NEGATIVE_TREATMENT_LABELS: frozenset[str] = frozenset({
+    "overruled",
+    "abrogated",
+    "overturned",
+    "reversed",
+    "vacated",
+    "superseded",
+    "no longer good law",
+})
 
 
 @dataclass
@@ -373,3 +383,47 @@ class CitationNetworkBuilder:
             citing_counts=dict(citing_counts),
             cited_counts=dict(cited_counts),
         )
+
+
+def propagate_negative_treatment(network: CitationNetwork) -> list[str]:
+    """Propagate downstream negative treatment through the citation graph.
+
+    A case is flagged as suspect when every authority it cites has been
+    invalidated by negative treatment. The invalidation propagates transitively
+    so that downstream cases relying solely on tainted authorities are also
+    marked.
+
+    Args:
+        network: Citation network containing nodes and edges with treatment
+            metadata.
+
+    Returns:
+        Sorted list of citations flagged as suspect due to downstream
+        negative treatment propagation.
+    """
+
+    authorities_by_case: dict[str, list[str]] = defaultdict(list)
+    dependents_by_authority: dict[str, list[str]] = defaultdict(list)
+    invalidated: set[str] = set()
+    for edge in network.edges:
+        authorities_by_case[edge.from_citation].append(edge.to_citation)
+        dependents_by_authority[edge.to_citation].append(edge.from_citation)
+
+        treatment = (edge.treatment or "").strip().lower()
+        if treatment in NEGATIVE_TREATMENT_LABELS:
+            invalidated.add(edge.to_citation)
+
+    suspects: set[str] = set()
+    queue: deque[str] = deque(invalidated)
+
+    while queue:
+        invalidated_authority = queue.popleft()
+        for dependent in dependents_by_authority.get(invalidated_authority, []):
+            authorities = authorities_by_case.get(dependent, [])
+            if authorities and all(authority in invalidated for authority in authorities):
+                if dependent not in suspects:
+                    suspects.add(dependent)
+                    invalidated.add(dependent)
+                    queue.append(dependent)
+
+    return sorted(suspects)

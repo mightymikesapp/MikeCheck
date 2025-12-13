@@ -206,4 +206,4 @@ No additional dependencies required.
 
 - **CLAUDE.md**: Architecture documentation (see "Future Enhancements" section)
 - **PERFORMANCE_OPTIMIZATION.md**: Resource efficiency guidelines
-- **Zero-Shot Model**: https://huggingface.co/MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33
+- **Zero-Shot Model**: [MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33](https://huggingface.co/MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33)

@@ -12,16 +12,17 @@
                 hx-vals='{"citation": "{{ citation }}", "index": {{ loop.index }} }'
                 hx-target="#row-{{ loop.index }}"
                 hx-swap="outerHTML"
-                hx-indicator="#indicator-{{ loop.index }}"
-                class="check-btn text-blue-600 hover:text-blue-800 font-medium text-xs border border-blue-200 rounded px-2 py-1 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1">
-            Check Validity
+                hx-disabled-elt="this"
+                aria-label="Check validity for {{ citation }}"
+                class="check-btn group relative text-blue-600 hover:text-blue-800 font-medium text-xs border border-blue-200 rounded px-2 py-1 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-70 disabled:cursor-wait">
+            <span class="group-[.htmx-request]:invisible">Check Validity</span>
+            <span class="hidden group-[.htmx-request]:flex absolute inset-0 items-center justify-center">
+                <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </span>
         </button>
-        <div id="indicator-{{ loop.index }}" class="htmx-indicator inline-block ml-2 align-middle">
-            <svg class="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-        </div>
     </td>
 </tr>
 {% endfor %}

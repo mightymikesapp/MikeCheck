@@ -2,8 +2,7 @@
 
 import pytest
 
-import pytest
-
+from app.analysis.citation_network import (
 from app.analysis.citation_network import (
     CaseNode,
     CitationEdge,

@@ -475,7 +475,7 @@ async def test_find_circuit_splits_with_split(mock_client, mocker):
     result = await find_circuit_splits_impl("384 U.S. 436", min_cases_per_circuit=2)
 
     assert result["split_detected"] is True
-    assert result["split_type"] in ["direct_conflict", "emerging_split", "potential_split"]
-    assert "ca9" in result["circuits_involved"] or "ca5" in result["circuits_involved"]
+    assert result["split_type"] == "direct_conflict"
+    assert set(result["circuits_involved"]) == {"ca9", "ca5"}
     assert "circuit_details" in result
-    assert len(result["circuit_details"]) >= 1
+    assert len(result["circuit_details"]) == 2

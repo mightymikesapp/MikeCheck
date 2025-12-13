@@ -66,31 +66,58 @@ This server adds treatment analysis, citation networks, quote verification, and 
 
 ## 🏗️ Architecture
 
-This MCP uses the **Wrapper/Orchestrator Pattern**, calling the CourtListener API directly while providing an intelligence layer for advanced analysis:
+This project employs a **Dual-Head Architecture**, sharing core research logic between an AI-facing MCP server and a human-facing Web UI. It uses the **Wrapper/Orchestrator Pattern** to layer intelligence over the CourtListener API:
 
-```
-┌─────────────────────────────────────────┐
-│  Legal Research Assistant MCP           │
-│  (Intelligence Layer)                   │
-│                                         │
-│  ✓ Treatment Analysis                  │
-│  ✓ Citation Networks                   │
-│  ✓ Quote Verification                  │
-│  ✓ Semantic Search                     │
-│  ✓ Research Pipelines                  │
-│  ✓ Mermaid Visualizations              │
-└──────────┬──────────────────────────────┘
-           │ calls ↓
-┌──────────▼─────────────────┐  ┌──────────────────────┐
-│  CourtListener API         │  │  Vector Store        │
-│  (Free Law Project)        │  │  (Chromadb)          │
-│  (Data Access Layer)       │  │  (Embeddings/Cache)  │
-└────────────────────────────┘  └──────────────────────┘
+```mermaid
+graph TD
+    User[User / AI Agent]
+
+    subgraph Interfaces
+        MCP[MCP Server\n(app/server.py)]
+        Web[Web UI\n(app/api.py)]
+    end
+
+    subgraph Orchestration
+        Tools[Research Tools\n(app/tools/)]
+    end
+
+    subgraph Core_Logic
+        Analysis[Analysis Engines\n(app/analysis/)]
+    end
+
+    subgraph Data_Layer
+        CL[CourtListener API]
+        Cache[Local Cache]
+        Vector[Vector Store\n(Chromadb)]
+    end
+
+    User --> MCP
+    User --> Web
+
+    MCP --> Tools
+    Web --> Tools
+    Web --> Analysis
+
+    Tools --> Analysis
+
+    Analysis --> CL
+    Analysis --> Cache
+    Analysis --> Vector
 ```
 
-## 🚀 Quickstart
+The system is built on a "Core-Interface" separation:
+- **Interfaces**:
+  - **MCP Server (`app/server.py`)**: Exposes tools to LLMs (Claude, etc.) via the Model Context Protocol.
+  - **Web UI (`app/api.py`)**: FastHTMX/Alpine.js interface for direct human interaction.
+- **Tools (`app/tools/`)**: Orchestrates complex workflows (e.g., `run_research_pipeline`).
+- **Core Logic (`app/analysis/`)**: Pure Python modules for legal analysis (Parsing, NLP, Graphing).
+- **Data Layer**: Manages external API calls, file-based caching, and vector storage.
+
+## 🚀 Getting Started
 
 The project uses [uv](https://github.com/astral-sh/uv) for dependency management and Python 3.12+.
+
+### Installation
 
 ```bash
 # Clone and enter the repository
@@ -100,32 +127,31 @@ cd legal-research-assistant-mcp
 # Install dependencies
 uv sync
 
-# Copy environment configuration template and customize
+# Configure environment
 cp .env.example .env
-
-# Add your CourtListener API key (either alias works)
-echo "COURT_LISTENER_API_KEY=your_key_here" >> .env
+# Edit .env to add your COURT_LISTENER_API_KEY
 ```
 
-### 🚀 Running the Server
+### Running the Application
 
-```bash
-# Start the MCP server
-uv run python -m app.server
+You can run the application in two modes depending on your needs:
 
-# Or launch via the MCP CLI (e.g., Claude Desktop)
-# The server will be available as "Legal Research Assistant MCP"
-```
-
-### 🌐 Web UI
-
-Run the FastAPI-powered Web UI for PDF uploads, citation extraction, and issue mapping:
+#### Option A: Web UI (for Humans)
+Best for interactive research, PDF uploads, and visualizations.
 
 ```bash
 # Start the Web UI
 uv run python -m app.api
 
-# Then open http://localhost:8000 in your browser
+# Open http://localhost:8000 in your browser
+```
+
+#### Option B: MCP Server (for AI Agents)
+Exposes tools to Claude Desktop or other MCP clients.
+
+```bash
+# Start the MCP server (stdio transport)
+uv run python -m app.server
 ```
 
 - **URL:** http://localhost:8000
@@ -693,36 +719,34 @@ Intelligent multi-layer caching:
 legal-research-assistant-mcp/
 ├── app/
 │   ├── __init__.py
-│   ├── __main__.py           # Entry point
-│   ├── cache.py              # Cache utilities and interfaces
-│   ├── config.py             # Configuration with Pydantic
-│   ├── logging_utils.py      # Structured logging helpers
-│   ├── mcp_client.py         # CourtListener API client
-│   ├── server.py             # Main MCP server
-│   ├── tools/                # MCP tool implementations
-│   │   ├── cache_tools.py    # Cache management helpers
+│   ├── __main__.py           # Module entry point
+│   ├── api.py                # Web UI entry point (FastAPI)
+│   ├── server.py             # MCP Server entry point
+│   ├── mcp_client.py         # CourtListener API wrapper
+│   ├── config.py             # Configuration
+│   ├── templates/            # Jinja2 templates (HTMX/Alpine)
+│   ├── static/               # Static assets
+│   ├── tools/                # Shared orchestration tools
+│   │   ├── cache_tools.py    # Cache management
 │   │   ├── network.py        # Citation network tools
-│   │   ├── research.py       # Research workflow helpers
+│   │   ├── research.py       # Research pipelines
 │   │   ├── search.py         # Semantic search tools
 │   │   ├── treatment.py      # Treatment analysis tools
 │   │   └── verification.py   # Quote verification tools
 │   └── analysis/             # Core analysis modules
-│       ├── citation_network.py       # Network graph construction
-│       ├── mermaid_generator.py      # Mermaid diagram generation
-│       ├── issue_discovery.py        # Issue clustering heuristics
-│       ├── quote_matcher.py          # Quote matching with fuzzy search
-│       ├── semantic_search.py        # Vector-based similarity search
-│       └── treatment_classifier.py   # Signal detection & classification
-├── tests/                   # Pytest suites (285+ test functions)
-│   ├── test_cache.py
-│   ├── test_mcp_client.py
-│   ├── test_network_tools.py
-│   ├── test_search_tool.py
-│   ├── test_semantic_search.py
-│   └── ...
-├── pyproject.toml           # Python package configuration
-├── .env.example             # Environment template
-├── .gitignore
+│       ├── citation_network.py       # Graph construction
+│       ├── treatment_classifier.py   # Signal detection
+│       ├── quote_matcher.py          # Fuzzy matching
+│       ├── semantic_search.py        # Vector search
+│       ├── document_processing.py    # PDF text/citation extraction
+│       ├── deep_shepard.py           # Advanced Shepardizing logic
+│       ├── circuit_analyzer.py       # Circuit conflict analysis
+│       ├── issue_discovery.py        # Doctrinal clustering
+│       ├── mermaid_generator.py      # Diagram generation
+│       └── court_mapper.py           # Court hierarchy mapping
+├── tests/                    # Pytest suites (285+ test functions)
+├── pyproject.toml            # Python package configuration
+├── .env.example              # Environment template
 └── README.md
 ```
 

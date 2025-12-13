@@ -11,3 +11,7 @@
 ## 2024-05-25 - [Duplicate Regex Scanning]
 **Learning:** `TreatmentClassifier` was running BOTH iterative (O(L*P)) and combined (O(L)) regex matching, effectively doing the work 3 times and generating duplicate signals. The combined regex covers all cases, so the iterative loops were purely redundant.
 **Action:** Remove legacy iterative loops when a combined regex is available. Ensure regex patterns in the combined list accurately reflect all variations (e.g. `can't` vs `cann't`).
+
+## 2024-05-26 - [Merged Citation Contexts]
+**Learning:** Scanning fixed-size windows around every citation caused massive redundancy (O(C*W)) when citations were close together, leading to 15x duplicated work and signals. Merging overlapping windows reduces this to O(L) (linear scan of relevant regions).
+**Action:** When analyzing text around multiple points of interest (citations), always merge overlapping regions before scanning to avoid redundant processing and duplicate results.

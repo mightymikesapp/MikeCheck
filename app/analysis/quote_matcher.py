@@ -43,6 +43,19 @@ class QuoteVerificationResult:
 class QuoteMatcher:
     """Matcher for verifying legal quotes against source text."""
 
+    STOPWORDS = {
+        "the", "of", "and", "a", "to", "in", "is", "you", "that", "it", "he", "was",
+        "for", "on", "are", "as", "with", "his", "they", "i", "at", "be", "this",
+        "have", "from", "or", "one", "had", "by", "word", "but", "not", "what",
+        "all", "were", "we", "when", "your", "can", "said", "there", "use", "an",
+        "each", "which", "she", "do", "how", "their", "if", "will", "up", "other",
+        "about", "out", "many", "then", "them", "these", "so", "some", "her",
+        "would", "make", "like", "him", "into", "time", "has", "look", "two",
+        "more", "write", "go", "see", "number", "no", "way", "could", "people",
+        "my", "than", "first", "water", "been", "call", "who", "oil", "its", "now",
+        "find", "long", "down", "day", "did", "get", "come", "made", "may", "part"
+    }
+
     def __init__(
         self,
         exact_match_threshold: float = 1.0,
@@ -99,6 +112,18 @@ class QuoteMatcher:
         # Normalize ellipsis
         text = re.sub(r"\.{3,}|\.\s\.\s\.", "...", text)
         return text
+
+    def _get_significant_words(self, text: str) -> list[str]:
+        """Extract significant words (non-stopwords) from text.
+
+        Args:
+            text: Input text
+
+        Returns:
+            List of significant words
+        """
+        words = text.split()
+        return [w for w in words if w not in self.STOPWORDS and len(w) > 2]
 
     def calculate_similarity(self, text1: str, text2: str) -> float:
         """Calculate similarity between two text strings.
@@ -163,7 +188,9 @@ class QuoteMatcher:
     ) -> list[QuoteMatch]:
         """Find fuzzy matches of quote in source text.
 
-        Uses sliding window approach to find similar passages.
+        Uses a two-phase "filter-then-verify" approach:
+        1. Filter: Scan text using Jaccard index of significant words to find candidates.
+        2. Verify: Apply detailed SequenceMatcher only to top candidates.
 
         Args:
             quote: Quote to search for
@@ -182,55 +209,109 @@ class QuoteMatcher:
         if quote_len > source_len:
             return []
 
-        # Quick rejection: If quote doesn't appear at all, skip expensive matching
-        # Check for a few key words from the quote (first, middle, last significant words)
-        quote_words = normalized_quote.split()
-        if len(quote_words) >= 3:
-            # Check if at least 2 out of [first, middle, last] words appear
-            sample_words = [quote_words[0], quote_words[len(quote_words) // 2], quote_words[-1]]
-            found_count = sum(
-                1 for word in sample_words if len(word) > 3 and word in normalized_source
-            )
-            if found_count < 1:
-                # Quote very unlikely to be present, skip expensive matching
-                return []
+        # Significant word analysis
+        quote_words = self._get_significant_words(normalized_quote)
+        if not quote_words:
+            # Fallback to all words if no significant words found
+            quote_words = normalized_quote.split()
 
+        quote_word_set = set(quote_words)
+
+        # Robust quick rejection: Check if significant words are present
+        if len(quote_words) >= 3:
+            # Check percentage of significant words present in source
+            present_words = sum(1 for w in quote_word_set if w in normalized_source)
+            coverage = present_words / len(quote_word_set)
+            if coverage < 0.3: # At least 30% of unique significant words must be present
+                 return []
+
+        # --- Phase 1: Filter (Candidate Generation) ---
+        candidates: list[tuple[float, int]] = [] # (score, position)
+
+        # Use a sliding window roughly the size of the quote
+        # Stride can be aggressive (half the quote length) since we just need to hit the region
+        stride = max(1, quote_len // 2)
+        window_size = quote_len
+
+        # Tokenize source once for word-based filtering if needed,
+        # but for simple Jaccard on the window text, we can just split the window string.
+        # To make it faster, we'll scan character-based windows but process words inside.
+
+        for start in range(0, source_len - window_size + 1, stride):
+            end = start + window_size
+            window_text = normalized_source[start:end]
+
+            # Quick Jaccard Index estimate
+            # Split is relatively cheap on small windows
+            window_words = set(self._get_significant_words(window_text))
+
+            if not window_words and not quote_word_set:
+                continue
+
+            intersection = len(quote_word_set.intersection(window_words))
+            union = len(quote_word_set.union(window_words))
+
+            jaccard_score = intersection / union if union > 0 else 0
+
+            # Keep candidates with some overlap
+            if jaccard_score > 0.1: # Low threshold to catch fuzzy matches
+                candidates.append((jaccard_score, start))
+
+        # Sort candidates by Jaccard score
+        candidates.sort(reverse=True, key=lambda x: x[0])
+
+        # Limit candidates to check fully
+        top_candidates = candidates[:max(10, max_matches * 2)]
+
+        # If no candidates found via Jaccard (e.g. very short quotes or no significant words),
+        # we might need a fallback or just accept no match.
+        # For very short quotes (no significant words), the logic above handles them via fallback to all words.
+
+        # --- Phase 2: Verify (SequenceMatcher) ---
         matches: list[tuple[float, int, str]] = []  # (similarity, position, text)
         best_similarity_found = 0.0
 
-        # Sliding window approach
-        window_size = quote_len
         tolerance = int(quote_len * 0.2)  # Allow 20% size variation
 
-        # PERFORMANCE: Increased step size from //4 to //2 (2x faster)
-        step_size = max(1, quote_len // 2)
+        for _, start in top_candidates:
+            # Optimization: Check exact window size first
+            target_size = window_size
+            end = start + target_size
+            if end > source_len:
+                end = source_len
 
-        for start in range(0, source_len - window_size + tolerance + 1, step_size):
-            # PERFORMANCE: Early termination if we've found excellent match
+            window = normalized_source[start:end]
+            similarity = self.calculate_similarity(normalized_quote, window)
+
+            best_local_match = (similarity, start, source[start:end])
+
+            # Only expand/contract if promising
+            if similarity > 0.5:
+                # Try expanding/contracting
+                # We search a range around the target size
+                min_size = max(target_size - tolerance, 1)
+                max_size = min(target_size + tolerance, source_len - start)
+
+                # Check bounds to avoid redundant work if tolerance is small
+                if min_size < target_size or max_size > target_size:
+                    for size in range(min_size, max_size + 1):
+                        if size == target_size: continue
+
+                        end = start + size
+                        window = normalized_source[start:end]
+                        sim = self.calculate_similarity(normalized_quote, window)
+
+                        if sim > best_local_match[0]:
+                            best_local_match = (sim, start, source[start:end])
+
+            if best_local_match[0] >= self.fuzzy_threshold:
+                matches.append(best_local_match)
+                if best_local_match[0] > best_similarity_found:
+                    best_similarity_found = best_local_match[0]
+
+            # Early exit if perfect match
             if best_similarity_found >= 0.98:
                 break
-
-            for size in range(
-                max(window_size - tolerance, 1),
-                min(window_size + tolerance, source_len - start) + 1,
-            ):
-                end = start + size
-                window = normalized_source[start:end]
-
-                similarity = self.calculate_similarity(normalized_quote, window)
-
-                if similarity >= self.fuzzy_threshold:
-                    # Get the original text (not normalized)
-                    original_text = source[start:end]
-                    matches.append((similarity, start, original_text))
-
-                    # Track best similarity for early termination
-                    if similarity > best_similarity_found:
-                        best_similarity_found = similarity
-
-                    # PERFORMANCE: Stop checking size variations if we found exact match
-                    if similarity >= 0.98:
-                        break
 
         # Sort by similarity (descending) and remove duplicates
         matches.sort(reverse=True, key=lambda x: x[0])

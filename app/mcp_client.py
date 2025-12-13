@@ -652,8 +652,15 @@ class CourtListenerClient:
             seen_ids: set[Any] = set()
             deduped_results: list[CourtListenerCase] = []
             for case_result in aggregated_results:
+                # Use a stable tuple for deduplication instead of id()
                 identifier = (
-                    case_result.get("id") or case_result.get("absolute_url") or id(case_result)
+                    case_result.get("id")
+                    or case_result.get("absolute_url")
+                    or (
+                        case_result.get("caseName"),
+                        case_result.get("dateFiled"),
+                        tuple(case_result.get("citation", [])),
+                    )
                 )
                 if identifier in seen_ids:
                     continue

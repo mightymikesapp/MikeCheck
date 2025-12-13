@@ -184,6 +184,10 @@ class TreatmentClassifier:
             re.compile(p, re.IGNORECASE): (s, w) for p, (s, w) in POSITIVE_SIGNALS.items()
         }
 
+        # Optimize court weight patterns
+        self.court_ca_pattern = re.compile(r"ca\d+")
+        self.court_dist_pattern = re.compile(r"d\d+")
+
     def should_fetch_full_text(
         self,
         initial_analysis: "TreatmentAnalysis",
@@ -221,7 +225,7 @@ class TreatmentClassifier:
             bool: True if a negation indicator is found within the preceding window, False otherwise.
         """
         start = max(0, position - window)
-        preceding = text[start:position].lower()
+        preceding = text[start:position]
         return bool(self.negation_pattern.search(preceding))
 
     def _get_court_weight(self, court_id: str | None) -> float:
@@ -244,9 +248,9 @@ class TreatmentClassifier:
         court_id = court_id.lower()
         if "scotus" in court_id or "us" == court_id:
             return 1.0
-        if re.match(r"ca\d+", court_id) or "cir" in court_id:
+        if self.court_ca_pattern.match(court_id) or "cir" in court_id:
             return 0.8
-        if re.match(r"d\d+", court_id) or "dist" in court_id:
+        if self.court_dist_pattern.match(court_id) or "dist" in court_id:
             return 0.6
 
         return 0.7  # State/other courts default

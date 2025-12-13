@@ -717,6 +717,16 @@ class TreatmentClassifier:
         citation: str,
         signals: list[TreatmentSignal],
     ) -> str:
+        """Select the best excerpt from detected signals.
+
+        Args:
+            text: Full text (unused if signals provided).
+            citation: The citation being analyzed.
+            signals: List of detected treatment signals.
+
+        Returns:
+            The context text of the strongest signal, or empty string.
+        """
         if signals:
             best_signal = max(
                 signals,

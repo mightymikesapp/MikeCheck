@@ -269,6 +269,7 @@ class CircuitAnalyzer:
                 f"Mismatched cases and treatments: {len(cases)} cases, {len(treatments)} treatments"
             )
             return None, circuits_analyzed_count
+            return None, 0
 
         # Group by circuit
         circuit_groups = self._group_by_circuit(cases, treatments)

@@ -9,7 +9,6 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from app.analysis.deep_shepard import DeepShepardAnalyzer
 from app.analysis.issue_discovery import IssueDiscoverer
 from app.analysis.mermaid_generator import MermaidGenerator
 from app.config import get_settings

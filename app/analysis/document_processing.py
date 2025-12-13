@@ -46,7 +46,14 @@ EXCLUDED_TERMS = {
 
 
 def extract_text_from_pdf(content: bytes) -> str:
-    """Extract text from PDF content."""
+    """Extract text from PDF content.
+
+    Args:
+        content: Raw bytes of the PDF file.
+
+    Returns:
+        Extracted text as a string.
+    """
     try:
         reader = PdfReader(io.BytesIO(content))
         text_parts: list[str] = []
@@ -59,7 +66,14 @@ def extract_text_from_pdf(content: bytes) -> str:
 
 
 def extract_citations(text: str) -> list[str]:
-    """Extract legal citations from text using regex."""
+    """Extract legal citations from text using regex.
+
+    Args:
+        text: Input text to scan.
+
+    Returns:
+        List of unique extracted citations (normalized).
+    """
     pattern = r"(\d+)\s+([A-Za-z\d\.\s]+?)\s+(\d+)"
 
     matches = re.finditer(pattern, text)

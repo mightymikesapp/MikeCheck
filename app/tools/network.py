@@ -29,7 +29,19 @@ async def build_citation_network_impl(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> CitationNetworkResult:
-    """Implementation of build_citation_network."""
+    """Build a citation network for a given case (implementation).
+
+    Args:
+        citation: The citation to build a network around (e.g., "410 U.S. 113").
+        max_depth: Maximum depth to traverse (1 = direct citations only).
+        max_nodes: Maximum number of nodes to include.
+        include_treatments: Whether to include treatment analysis for edges.
+        request_id: Optional request ID for logging.
+        job_id: Optional job ID for logging.
+
+    Returns:
+        Dictionary containing root citation, nodes, edges, and statistics.
+    """
     query_params = {
         "citation": citation,
         "max_depth": max_depth,
@@ -237,7 +249,21 @@ async def filter_citation_network_impl(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> CitationNetworkResult:
-    """Implementation of filter_citation_network."""
+    """Filter a citation network based on treatment, confidence, and date (implementation).
+
+    Args:
+        citation: The citation to analyze.
+        treatments: List of treatments to include (e.g., ["overruled"]).
+        min_confidence: Minimum confidence score (0.0-1.0).
+        date_after: Only include cases filed after this date.
+        date_before: Only include cases filed before this date.
+        max_nodes: Maximum number of nodes to include.
+        request_id: Optional request ID for logging.
+        job_id: Optional job ID for logging.
+
+    Returns:
+        Filtered citation network result.
+    """
     query_params = {
         "citation": citation,
         "treatments": treatments,
@@ -352,7 +378,21 @@ async def get_network_statistics_impl(
     weight_by_court_level: bool = False,
     weight_by_treatment_polarity: bool = False,
 ) -> dict[str, Any]:
-    """Implementation of get_network_statistics."""
+    """Calculate statistics for a citation network (implementation).
+
+    Args:
+        citation: The citation to analyze.
+        max_nodes: Maximum number of nodes to include.
+        request_id: Optional request ID.
+        job_id: Optional job ID.
+        enable_advanced_metrics: Whether to compute PageRank/eigenvector metrics.
+        enable_community_detection: Whether to perform community detection.
+        weight_by_court_level: Weight edges by inferred court hierarchy.
+        weight_by_treatment_polarity: Weight edges by treatment sentiment.
+
+    Returns:
+        Dictionary with network statistics and insights.
+    """
     query_params = {
         "citation": citation,
         "max_nodes": max_nodes,
@@ -585,7 +625,27 @@ async def visualize_citation_network_impl(
     max_nodes: int = 50,
     request_id: str | None = None,
 ) -> dict[str, Any]:
-    """Implementation of visualize_citation_network."""
+    """Generate visualizations for a citation network (implementation).
+
+    Args:
+        citation: The citation to visualize.
+        diagram_type: Type of diagram (flowchart, hierarchical, mindmap, timeline, or all).
+        style_preset: Visual style preset.
+        direction: Diagram direction (TB, LR, etc.).
+        color_by_treatment: Whether to color-code by treatment.
+        color_by_court: Whether to color-code by court level.
+        node_size_by: Attribute to size nodes by (citation, authority, or None).
+        show_legend: Whether to include a legend.
+        court_palette: Custom color palette for courts.
+        treatment_palette: Custom color palette for treatments.
+        include_graphml: Whether to include GraphML output.
+        include_json: Whether to include JSON output.
+        max_nodes: Maximum nodes to include.
+        request_id: Optional request ID.
+
+    Returns:
+        Dictionary containing Mermaid syntax and other requested formats.
+    """
     query_params = {
         "citation": citation,
         "diagram_type": diagram_type,
@@ -696,7 +756,17 @@ async def export_citation_network_impl(
     max_nodes: int = 100,
     request_id: str | None = None,
 ) -> dict[str, Any]:
-    """Implementation of export_citation_network."""
+    """Export the citation network to a file format (implementation).
+
+    Args:
+        citation: The citation to export.
+        format: Export format (graphml, json, obsidian, canvas).
+        max_nodes: Maximum nodes to include.
+        request_id: Optional request ID.
+
+    Returns:
+        Dictionary with file content and metadata.
+    """
     query_params = {
         "citation": citation,
         "format": format,
@@ -767,7 +837,19 @@ async def generate_citation_report_impl(
     max_nodes: int = 50,
     request_id: str | None = None,
 ) -> dict[str, Any]:
-    """Implementation of generate_citation_report."""
+    """Generate a markdown report for a citation (implementation).
+
+    Args:
+        citation: The citation to analyze.
+        include_diagram: Whether to include a Mermaid diagram.
+        include_statistics: Whether to include statistics.
+        treatment_focus: List of treatments to highlight in detail.
+        max_nodes: Maximum nodes to include.
+        request_id: Optional request ID.
+
+    Returns:
+        Dictionary with the markdown report and raw data.
+    """
     query_params = {
         "citation": citation,
         "include_diagram": include_diagram,

@@ -31,9 +31,12 @@ class RateLimiter:
     # Endpoint-specific limits (override defaults)
     ENDPOINT_LIMITS = {
         "/herding/analyze": "5/minute",  # Treatment analysis limited
-        "/herding/analyze/bulk": "2/minute",  # Bulk operations more limited
-        "/search/semantic": "20/minute",  # Semantic search limited
-        "/research/pipeline": "3/minute",  # Heavy computation limited
+        "/herding/analyze_html": "10/minute",  # HTMX treatment analysis
+        "/herding/details_html": "20/minute",  # Modal details
+        "/search/similar": "20/minute",  # Semantic search limited
+        "/search/similar_html": "20/minute",  # HTMX semantic search
+        "/research/analyze": "3/minute",  # Research pipeline (heavy)
+        "/analyze/upload": "5/minute",  # Document upload (heavy)
         "/health": None,  # No rate limit for health checks
         "/metrics": None,  # No rate limit for metrics
     }
@@ -43,7 +46,7 @@ class RateLimiter:
         self.limiter = Limiter(
             key_func=self._get_key,
             default_limits=["100/minute"],  # Global default
-            storage_uri="memory",  # Use in-memory storage (for single-instance)
+            storage_uri="memory://",  # Use in-memory storage (for single-instance)
             swallow_errors=False,  # Don't swallow rate limit errors
             in_memory_fallback_enabled=True,  # Fallback to in-memory if storage fails
         )

@@ -6,6 +6,18 @@ from app.api import app
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def disable_rate_limit():
+    """Disable rate limiting for all tests in this module."""
+    if hasattr(app.state, "limiter"):
+        original_enabled = app.state.limiter.enabled
+        app.state.limiter.enabled = False
+        yield
+        app.state.limiter.enabled = original_enabled
+    else:
+        yield
+
+
 @pytest.mark.unit
 def test_security_headers_present():
     response = client.get("/")

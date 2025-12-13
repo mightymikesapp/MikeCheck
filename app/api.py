@@ -18,6 +18,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.concurrency import run_in_threadpool
 
 from app.analysis.document_processing import extract_citations, extract_text_from_pdf
@@ -29,6 +31,7 @@ from app.metrics import (
     record_api_error,
     record_api_request,
 )
+from app.rate_limiting import get_rate_limiter, rate_limit_dynamic
 from app.tools.research import issue_map_impl, run_research_pipeline_impl
 from app.tools.search import semantic_search_impl
 from app.tools.treatment import check_case_validity_impl
@@ -129,6 +132,11 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,  # Enable graceful shutdown handling
 )
+
+# Initialize Rate Limiter
+limiter = get_rate_limiter().limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS from settings (environment-configurable)
 cors_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
@@ -274,6 +282,7 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 @app.post("/analyze/upload")
+@rate_limit_dynamic(endpoint="/analyze/upload")
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
@@ -337,15 +346,18 @@ async def upload_document(
 
 
 @app.post("/herding/analyze")
+@rate_limit_dynamic(endpoint="/herding/analyze")
 async def analyze_citation(
-    request: AnalysisRequest, api_key: Optional[str] = Depends(verify_api_key)
+    request: Request,
+    body: AnalysisRequest,
+    api_key: Optional[str] = Depends(verify_api_key),
 ) -> dict[str, Any]:
     """Run treatment analysis on a citation (JSON API)."""
     _log_anonymous_access(api_key, "/herding/analyze")
     try:
-        result = await check_case_validity_impl(request.citation)
+        result = await check_case_validity_impl(body.citation)
         return {
-            "citation": request.citation,
+            "citation": body.citation,
             "status": "completed",
             "result": result,
         }
@@ -355,6 +367,7 @@ async def analyze_citation(
 
 
 @app.post("/herding/analyze_html")
+@rate_limit_dynamic(endpoint="/herding/analyze_html")
 async def analyze_citation_html(
     request: Request,
     citation: str = Form(...),
@@ -378,13 +391,16 @@ async def analyze_citation_html(
 
 
 @app.post("/search/similar")
+@rate_limit_dynamic(endpoint="/search/similar")
 async def find_similar(
-    request: SearchRequest, api_key: Optional[str] = Depends(verify_api_key)
+    request: Request,
+    body: SearchRequest,
+    api_key: Optional[str] = Depends(verify_api_key),
 ) -> dict[str, Any]:
     """Find similar cases using semantic search."""
     _log_anonymous_access(api_key, "/search/similar")
     try:
-        result = await semantic_search_impl(request.query, request.limit)
+        result = await semantic_search_impl(body.query, body.limit)
         return result
     except Exception as e:
         logger.error(f"Search failed: {e}")
@@ -392,13 +408,16 @@ async def find_similar(
 
 
 @app.post("/research/analyze")
+@rate_limit_dynamic(endpoint="/research/analyze")
 async def run_research(
-    request: ResearchRequest, api_key: Optional[str] = Depends(verify_api_key)
+    request: Request,
+    body: ResearchRequest,
+    api_key: Optional[str] = Depends(verify_api_key),
 ) -> dict[str, Any]:
     """Run comprehensive research pipeline."""
     _log_anonymous_access(api_key, "/research/analyze")
     try:
-        result = await run_research_pipeline_impl(request.citations, request.key_questions)
+        result = await run_research_pipeline_impl(body.citations, body.key_questions)
         return result
     except Exception as e:
         logger.error(f"Research failed: {e}")
@@ -406,6 +425,7 @@ async def run_research(
 
 
 @app.post("/research/issue_map_html")
+@rate_limit_dynamic(endpoint="/research/issue_map_html")
 async def get_issue_map_html(
     request: Request,
     primary_case: str = Form(...),
@@ -428,6 +448,7 @@ async def get_issue_map_html(
 
 
 @app.post("/herding/details_html")
+@rate_limit_dynamic(endpoint="/herding/details_html")
 async def analyze_citation_details(
     request: Request,
     citation: str = Form(...),
@@ -450,6 +471,7 @@ async def analyze_citation_details(
 
 
 @app.post("/search/similar_html")
+@rate_limit_dynamic(endpoint="/search/similar_html")
 async def find_similar_html(
     request: Request,
     query: str = Form(...),

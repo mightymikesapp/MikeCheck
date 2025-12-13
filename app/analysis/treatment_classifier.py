@@ -23,6 +23,8 @@ LocationType = Literal["body", "footnote"]
 
 logger = logging.getLogger(__name__)
 
+LocationType = Literal["body", "footnote"]
+
 WELL_KNOWN_CASES = {
     "410 U.S. 113": "Roe v. Wade",
     "539 U.S. 558": "Lawrence v. Texas",
@@ -48,6 +50,7 @@ class TreatmentSignal:
     position: int
     context: str
     opinion_type: str = "majority"  # majority, concurrence, dissent
+    location_type: LocationType = "body"
     location_type: LocationType = "body"  # body or footnote
 
 
@@ -65,6 +68,7 @@ class TreatmentAnalysis:
     date_filed: str | None = None
     treatment_context: str = "unknown"  # majority, dissent_only, mixed, etc.
     opinion_breakdown: dict[str, TreatmentType] = field(default_factory=dict)
+    location_type: LocationType = "body"  # indicates primary location of signals
     location_type: LocationType = "body"  # body or footnote - indicates primary location of signals
 
 
@@ -472,6 +476,7 @@ class TreatmentClassifier:
                         all_signals.extend(body_signals)
 
                         # Extract signals from footnotes
+                        footnote_signals: list[TreatmentSignal] = []
                         if parsed.footnote_text:
                             footnote_signals = self.extract_signals(
                                 parsed.footnote_text,
@@ -481,6 +486,13 @@ class TreatmentClassifier:
                             )
                             all_signals.extend(footnote_signals)
 
+                        # Determine treatment for this opinion with body precedence
+                        if body_signals:
+                            op_treatment, _ = self._aggregate_signals(body_signals)
+                        elif footnote_signals:
+                            op_treatment, _ = self._aggregate_signals(footnote_signals)
+                        else:
+                            op_treatment = TreatmentType.NEUTRAL
                         # Determine treatment for this opinion (using all signals)
                         combined_signals = body_signals + (
                             footnote_signals if parsed.footnote_text else []
@@ -513,6 +525,7 @@ class TreatmentClassifier:
                             all_signals.extend(body_signals)
 
                             # Extract signals from footnotes if detected
+                            footnote_signals = []
                             if parsed.footnote_text:
                                 footnote_signals = self.extract_signals(
                                     parsed.footnote_text,
@@ -522,6 +535,12 @@ class TreatmentClassifier:
                                 )
                                 all_signals.extend(footnote_signals)
 
+                            if body_signals:
+                                op_treatment, _ = self._aggregate_signals(body_signals)
+                            elif footnote_signals:
+                                op_treatment, _ = self._aggregate_signals(footnote_signals)
+                            else:
+                                op_treatment = TreatmentType.NEUTRAL
                             combined_signals = body_signals + (
                                 footnote_signals if parsed.footnote_text else []
                             )
@@ -631,6 +650,21 @@ class TreatmentClassifier:
         body_signals = [s for s in all_signals if s.location_type == "body"]
         footnote_signals = [s for s in all_signals if s.location_type == "footnote"]
 
+        body_treatment, body_confidence = (
+            self._aggregate_signals(body_signals, court_weight)
+            if body_signals
+            else (TreatmentType.NEUTRAL, 0.0)
+        )
+        footnote_treatment, footnote_confidence = (
+            self._aggregate_signals(footnote_signals, court_weight)
+            if footnote_signals
+            else (TreatmentType.NEUTRAL, 0.0)
+        )
+
+        # Determine primary location based on where signals were found (body precedence)
+        primary_location: LocationType = (
+            "body" if body_signals else "footnote" if footnote_signals else "body"
+        )
         # Determine primary location based on where signals were found
         primary_location: LocationType = "body"
 
@@ -670,7 +704,15 @@ class TreatmentClassifier:
             negative_in_footnotes = any(s.location_type == "footnote" for s in negative_signals)
 
             if negative_in_footnotes and not negative_in_body:
-                # Negative signals found ONLY in footnotes - reduce confidence
+                # If body contains any signals, let it dictate treatment, then downgrade confidence
+                if body_signals:
+                    final_treatment = body_treatment
+                    final_confidence = body_confidence
+                    primary_location = "body"
+                else:
+                    final_confidence = footnote_confidence
+                    primary_location = "footnote"
+
                 logger.info(
                     f"Negative treatment signals found only in footnotes for "
                     f"{citing_case.get('caseName', 'Unknown')}. "
@@ -678,7 +720,6 @@ class TreatmentClassifier:
                     f"{max(0.0, final_confidence - 0.2):.2f}"
                 )
                 final_confidence = max(0.0, final_confidence - 0.2)
-                primary_location = "footnote"
 
         excerpt = self._extract_best_excerpt("", target_citation, all_signals)
 
@@ -828,6 +869,8 @@ class TreatmentClassifier:
                 key=lambda s: self._get_signal_weight(s.signal, TreatmentType.NEGATIVE),
             )
             weight = self._get_signal_weight(strongest.signal, TreatmentType.NEGATIVE)
+            if len(negative_signals) > 1:
+                weight = min(1.0, weight + 0.05 * (len(negative_signals) - 1))
             return TreatmentType.NEGATIVE, weight * court_weight
 
         elif positive_signals:
@@ -836,6 +879,8 @@ class TreatmentClassifier:
                 key=lambda s: self._get_signal_weight(s.signal, TreatmentType.POSITIVE),
             )
             weight = self._get_signal_weight(strongest.signal, TreatmentType.POSITIVE)
+            if len(positive_signals) > 1:
+                weight = min(1.0, weight + 0.05 * (len(positive_signals) - 1))
             return TreatmentType.POSITIVE, weight * court_weight
 
         return TreatmentType.NEUTRAL, 0.5

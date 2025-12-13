@@ -111,7 +111,8 @@ def test_parse_plain_text_fallback_without_footnotes():
 
     assert "main body of the opinion" in result.body_text
     # Should not detect footnotes since no numbered patterns at end
-    assert len(result.footnotes) == 0 or result.footnote_text == ""
+    assert len(result.footnotes) == 0, f"Unexpected footnotes detected: {result.footnotes}"
+    assert result.footnote_text == ""
 
 
 @pytest.mark.unit
@@ -126,9 +127,11 @@ def test_parse_plain_text_with_inline_footnote_references():
 
     result = FootnoteParser.parse_plain_text_fallback(text)
 
-    # Text with footnote references might be classified as footnote text
-    # depending on heuristics
-    assert result.body_text or result.footnote_text
+    # Lines with footnote references (n. 14, FN 3) should be detected as footnote content
+    assert "n. 14" in result.footnote_text or "FN 3" in result.footnote_text, (
+        "Expected inline footnote references to be detected"
+    )
+    assert "n. 14" not in result.body_text
 
 
 @pytest.mark.unit

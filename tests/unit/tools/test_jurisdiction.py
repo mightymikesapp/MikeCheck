@@ -336,11 +336,12 @@ class TestCircuitAnalyzer:
             ),
         ]
 
-        split = analyzer.detect_circuit_split(
+        split, circuits_analyzed = analyzer.detect_circuit_split(
             "410 U.S. 113", "Roe v. Wade", cases, treatments
         )
 
         assert split is not None
+        assert circuits_analyzed == 2
         assert split.split_type == "direct_conflict"
         assert "ca9" in split.circuits_involved
         assert "ca5" in split.circuits_involved
@@ -377,11 +378,12 @@ class TestCircuitAnalyzer:
             ),
         ]
 
-        split = analyzer.detect_circuit_split(
+        split, circuits_analyzed = analyzer.detect_circuit_split(
             "410 U.S. 113", "Roe v. Wade", cases, treatments
         )
 
         assert split is None
+        assert circuits_analyzed == 0
 
 
 @pytest.mark.unit

@@ -2,6 +2,8 @@
 
 import pytest
 
+import pytest
+
 from app.analysis.citation_network import (
     CaseNode,
     CitationEdge,
@@ -9,6 +11,8 @@ from app.analysis.citation_network import (
     CitationNetworkBuilder,
     propagate_negative_treatment,
 )
+
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

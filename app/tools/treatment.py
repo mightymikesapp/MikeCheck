@@ -8,6 +8,7 @@ import asyncio
 import logging
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
+from functools import partial
 from typing import Any, cast
 
 from dateutil.relativedelta import relativedelta
@@ -27,6 +28,48 @@ logger = logging.getLogger(__name__)
 classifier = TreatmentClassifier()
 _classification_executor: ProcessPoolExecutor | None = None
 
+# ML classifier (lazy loaded)
+_ml_classifier: Any | None | bool = None
+
+
+def _load_ml_classifier() -> Any:
+    """Synchronous helper to load the ML classifier."""
+    from app.analysis.ml_classifier import get_ml_classifier
+
+    return get_ml_classifier()
+
+
+async def _get_ml_classifier() -> Any:
+    """Get the ML classifier instance without blocking the event loop."""
+
+    global _ml_classifier
+    if not settings.enable_ml_classifier:
+        return None
+
+    if _ml_classifier is False:
+        return None
+
+    if _ml_classifier is not None:
+        return _ml_classifier
+
+    loop = asyncio.get_running_loop()
+    try:
+        _ml_classifier = await loop.run_in_executor(None, _load_ml_classifier)
+        logger.info(
+            "ML classifier initialized",
+            extra={"component": "ml_classifier"},
+        )
+    except Exception as e:  # pragma: no cover - defensive logging
+        logger.warning(
+            "Failed to initialize ML classifier",
+            extra={"component": "ml_classifier", "error": str(e)},
+            exc_info=True,
+        )
+        _ml_classifier = False  # Mark as failed to avoid retry
+        return None
+
+    return _ml_classifier
+
 
 def _classifier_concurrency() -> int:
     """Return a safe concurrency limit for classification tasks."""
@@ -37,9 +80,7 @@ def _get_classification_executor() -> ProcessPoolExecutor:
     """Return a lazily initialized process pool for classification."""
     global _classification_executor
     if _classification_executor is None:
-        _classification_executor = ProcessPoolExecutor(
-            max_workers=_classifier_concurrency()
-        )
+        _classification_executor = ProcessPoolExecutor(max_workers=_classifier_concurrency())
     return _classification_executor
 
 
@@ -68,14 +109,94 @@ async def _classify_parallel(
 
     async def classify(case: CourtListenerCase) -> TreatmentAnalysis:
         async with semaphore:
-            return await loop.run_in_executor(
-                None, classifier.classify_treatment, case, citation
-            )
+            return await loop.run_in_executor(None, classifier.classify_treatment, case, citation)
 
     return await asyncio.gather(
         *(classify(case) for case in cases),
         return_exceptions=True,
     )
+
+
+async def _refine_with_ml_classifier(
+    analysis: TreatmentAnalysis,
+    citation: str,
+) -> TreatmentAnalysis:
+    """Refine treatment analysis using ML classifier for ambiguous cases.
+
+    Args:
+        analysis: Initial treatment analysis from regex classifier
+        citation: The citation being analyzed
+
+    Returns:
+        Refined TreatmentAnalysis with potentially updated treatment_type and confidence
+    """
+    ml_classifier = await _get_ml_classifier()
+    if ml_classifier is None:
+        return analysis
+
+    # Check if we should use ML classifier
+    if analysis.confidence >= settings.ml_classifier_confidence_threshold:
+        return analysis
+
+    try:
+        # Get the best context from the analysis
+        context_text = analysis.excerpt
+        if not context_text and analysis.signals_found:
+            # Use the context from the strongest signal
+            context_text = analysis.signals_found[0].context
+
+        if not context_text:
+            logger.debug("No context text available for ML classification")
+            return analysis
+
+        # Run ML classification
+        loop = asyncio.get_running_loop()
+        classify = partial(
+            ml_classifier.classify_treatment,
+            context_text=context_text,
+            citation=citation,
+            confidence_threshold=0.5,
+        )
+        ml_result = await loop.run_in_executor(None, classify)
+
+        # If ML classifier has higher confidence, use its result
+        if ml_result["confidence"] > analysis.confidence:
+            logger.info(
+                f"ML classifier refined treatment: {analysis.treatment_type.value} "
+                f"(conf={analysis.confidence:.2f}) -> {ml_result['treatment_type'].value} "
+                f"(conf={ml_result['confidence']:.2f})",
+                extra={
+                    "citation": citation,
+                    "case_name": analysis.case_name,
+                    "regex_treatment": analysis.treatment_type.value,
+                    "regex_confidence": analysis.confidence,
+                    "ml_treatment": ml_result["treatment_type"].value,
+                    "ml_confidence": ml_result["confidence"],
+                },
+            )
+
+            # Create refined analysis
+            return TreatmentAnalysis(
+                case_name=analysis.case_name,
+                case_id=analysis.case_id,
+                citation=analysis.citation,
+                treatment_type=ml_result["treatment_type"],
+                confidence=ml_result["confidence"],
+                signals_found=analysis.signals_found,
+                excerpt=analysis.excerpt,
+                date_filed=analysis.date_filed,
+                treatment_context=analysis.treatment_context,
+                opinion_breakdown=analysis.opinion_breakdown,
+            )
+
+        return analysis
+
+    except Exception:
+        logger.exception(
+            "ML classifier refinement failed",
+            extra={"analysis_id": getattr(analysis, "id", None)},
+        )
+        return analysis
 
 
 def _coerce_failed_requests(raw_value: Any) -> list[dict[str, object]]:
@@ -119,9 +240,7 @@ async def _classify_case_in_executor(
     async with semaphore:
         loop = asyncio.get_running_loop()
         executor = _get_classification_executor()
-        return await loop.run_in_executor(
-            executor, classifier.classify_treatment, case, citation
-        )
+        return await loop.run_in_executor(executor, classifier.classify_treatment, case, citation)
 
 
 async def check_case_validity_impl(
@@ -271,13 +390,38 @@ async def check_case_validity_impl(
                 case_id = case.get("id") or id(case)
                 case_to_enhanced_analysis[case_id] = enhanced_analysis
 
-        treatments = []
-        for citing_case, initial_analysis in initial_treatments:
+        enhanced_analyses: list[TreatmentAnalysis | BaseException] = []
+        for citing_case, analysis in zip(citing_cases, analyses):
+            if isinstance(analysis, BaseException):
+                enhanced_analyses.append(analysis)
+                continue
+
             case_id = citing_case.get("id") or id(citing_case)
-            if case_id in case_to_enhanced_analysis:
-                treatments.append(case_to_enhanced_analysis[case_id])
-            else:
-                treatments.append(initial_analysis)
+            enhanced_analyses.append(case_to_enhanced_analysis.get(case_id, analysis))
+
+        # ML Refinement Pass (Smart Second Pass) after full-text enhancement
+        if settings.enable_ml_classifier:
+            semaphore = asyncio.Semaphore(4)
+
+            async def refine_with_limit(
+                index: int, item: TreatmentAnalysis | BaseException
+            ) -> tuple[int, TreatmentAnalysis | BaseException]:
+                if isinstance(item, BaseException):
+                    return index, item
+                async with semaphore:
+                    refined = await _refine_with_ml_classifier(item, citation)
+                    return index, refined
+
+            refinement_tasks = [
+                refine_with_limit(idx, analysis) for idx, analysis in enumerate(enhanced_analyses)
+            ]
+            refinement_results = await asyncio.gather(*refinement_tasks)
+            refined_map = {idx: result for idx, result in refinement_results}
+            enhanced_analyses = [refined_map[idx] for idx in range(len(enhanced_analyses))]
+
+        treatments = [
+            analysis for analysis in enhanced_analyses if not isinstance(analysis, BaseException)
+        ]
 
         log_event(
             logger,

@@ -42,6 +42,7 @@ async def find_circuit_splits_impl(
     Args:
         citation: Citation to analyze (e.g., "410 U.S. 113")
         min_cases_per_circuit: Minimum citing cases needed per circuit (default: 2)
+        split_threshold: Threshold for determining dominant treatment (default: 0.6)
         split_threshold: Minimum proportion required for a dominant treatment in a circuit
         request_id: Optional request ID for logging
         job_id: Optional job ID for tracking
@@ -250,6 +251,7 @@ async def find_circuit_splits(
         citation: The citation to analyze (e.g., "410 U.S. 113" or "Roe v. Wade")
         min_cases_per_circuit: Minimum citing cases needed per circuit to consider it
             (default: 2). Lower values may detect more splits but with less confidence.
+        split_threshold: Threshold for determining dominant treatment (default: 0.6)
         split_threshold: Proportion required for a dominant treatment in a circuit.
         request_id: Optional request ID for logging
         job_id: Optional job ID for tracking

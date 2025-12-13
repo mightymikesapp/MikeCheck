@@ -346,6 +346,7 @@ class TestCircuitAnalyzer:
         assert "ca9" in split.circuits_involved
         assert "ca5" in split.circuits_involved
         assert len(split.key_cases) > 0
+        assert circuits_analyzed == 2
 
     def test_detect_circuit_split_insufficient_data(self):
         """Test that no split is detected with insufficient data."""

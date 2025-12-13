@@ -144,6 +144,7 @@ class CircuitAnalyzer:
         negative = sum(1 for t in treatments if t.treatment_type == TreatmentType.NEGATIVE)
         neutral = sum(1 for t in treatments if t.treatment_type == TreatmentType.NEUTRAL)
 
+        # Determine dominant treatment
         counts = {
             TreatmentType.POSITIVE: positive,
             TreatmentType.NEGATIVE: negative,
@@ -258,6 +259,8 @@ class CircuitAnalyzer:
             treatments: Treatment analyses (must match cases 1:1)
 
         Returns:
+            Tuple containing CircuitSplit if split detected (or None) and the number
+            of circuits analyzed
             Tuple of (CircuitSplit if split detected else None, circuits analyzed)
         """
         if len(cases) != len(treatments):
@@ -277,6 +280,11 @@ class CircuitAnalyzer:
                     circuit_id, circuit_treatments_list
                 )
 
+        circuits_analyzed_count = len(circuit_treatments)
+
+        # Need at least 2 circuits to have a split
+        if circuits_analyzed_count < 2:
+            return None, circuits_analyzed_count
         circuits_analyzed = len(circuit_treatments)
 
         # Need at least 2 circuits to have a split
@@ -287,6 +295,7 @@ class CircuitAnalyzer:
         split_type, confidence, circuits_involved = self._detect_split_type(circuit_treatments)
 
         if split_type == "no_split":
+            return None, circuits_analyzed_count
             return None, circuits_analyzed
 
         # Build summary
@@ -339,4 +348,5 @@ class CircuitAnalyzer:
             summary=summary,
             supreme_court_likely=supreme_court_likely,
             key_cases=key_cases,
+        ), circuits_analyzed_count
         ), circuits_analyzed

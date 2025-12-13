@@ -158,6 +158,8 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    env:
+      COURTLISTENER_API_KEY: ${{ secrets.COURTLISTENER_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -175,9 +177,7 @@ jobs:
 
       - name: Run integration tests
         # Secrets are not available to workflows triggered from fork PRs.
-        if: ${{ secrets.COURTLISTENER_API_KEY != '' }}
-        env:
-          COURTLISTENER_API_KEY: ${{ secrets.COURTLISTENER_API_KEY }}
+        if: ${{ env.COURTLISTENER_API_KEY != '' }}
         run: uv run pytest -m integration -v
         # Consider making this blocking when the secret is present.
         continue-on-error: false

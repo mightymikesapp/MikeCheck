@@ -3,7 +3,7 @@
     <td class="px-6 py-4 font-medium text-gray-900 relative">
         <span tabindex="0" class="cursor-help peer rounded px-1 -ml-1 focus:outline-none focus:bg-yellow-50 focus:ring-2 focus:ring-yellow-200" aria-describedby="tooltip-{{ index }}">{{ result.citation }}</span>
         <!-- Tooltip -->
-        <div id="tooltip-{{ index }}" role="tooltip" class="absolute left-0 bottom-full mb-2 w-72 bg-gray-900 text-white text-xs rounded p-3 opacity-0 group-hover:opacity-100 peer-focus:opacity-100 transition-opacity z-20 pointer-events-none shadow-lg">
+        <div id="tooltip-{{ index }}" role="tooltip" class="absolute left-0 bottom-full mb-2 w-72 bg-gray-900 text-white text-xs rounded p-3 opacity-0 peer-hover:opacity-100 peer-focus:opacity-100 transition-opacity z-20 pointer-events-none shadow-lg">
             <p class="font-bold border-b border-gray-700 pb-1 mb-1">{{ result.case_name }}</p>
             <p class="mb-2">{{ result.summary }}</p>
             <div class="grid grid-cols-3 gap-1 text-center font-mono text-[10px]">

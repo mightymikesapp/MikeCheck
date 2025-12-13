@@ -816,6 +816,8 @@ class TreatmentClassifier:
                 key=lambda s: self._get_signal_weight(s.signal, TreatmentType.NEGATIVE),
             )
             weight = self._get_signal_weight(strongest.signal, TreatmentType.NEGATIVE)
+            if len(negative_signals) > 1:
+                weight = min(1.0, weight + 0.05 * (len(negative_signals) - 1))
             return TreatmentType.NEGATIVE, weight * court_weight
 
         elif positive_signals:
@@ -824,6 +826,8 @@ class TreatmentClassifier:
                 key=lambda s: self._get_signal_weight(s.signal, TreatmentType.POSITIVE),
             )
             weight = self._get_signal_weight(strongest.signal, TreatmentType.POSITIVE)
+            if len(positive_signals) > 1:
+                weight = min(1.0, weight + 0.05 * (len(positive_signals) - 1))
             return TreatmentType.POSITIVE, weight * court_weight
 
         return TreatmentType.NEUTRAL, 0.5

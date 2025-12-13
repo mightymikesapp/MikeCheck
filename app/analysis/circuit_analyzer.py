@@ -260,6 +260,9 @@ class CircuitAnalyzer:
 
         Returns:
             Tuple of (CircuitSplit if split detected, circuits analyzed)
+            Tuple containing CircuitSplit if split detected (or None) and the number
+            of circuits analyzed
+            Tuple of (CircuitSplit if split detected else None, circuits analyzed)
         """
         circuits_analyzed_count = 0
         if len(cases) != len(treatments):
@@ -267,6 +270,7 @@ class CircuitAnalyzer:
                 f"Mismatched cases and treatments: {len(cases)} cases, {len(treatments)} treatments"
             )
             return None, circuits_analyzed_count
+            return None, 0
 
         # Group by circuit
         circuit_groups = self._group_by_circuit(cases, treatments)
@@ -279,17 +283,27 @@ class CircuitAnalyzer:
                     circuit_id, circuit_treatments_list
                 )
 
+        circuits_analyzed_count = len(circuit_treatments)
+
         # Need at least 2 circuits to have a split
         circuits_analyzed_count = len(circuit_treatments)
 
         if circuits_analyzed_count < 2:
             return None, circuits_analyzed_count
+        if circuits_analyzed_count < 2:
+            return None, circuits_analyzed_count
+        circuits_analyzed = len(circuit_treatments)
+
+        # Need at least 2 circuits to have a split
+        if circuits_analyzed < 2:
+            return None, circuits_analyzed
 
         # Detect split type
         split_type, confidence, circuits_involved = self._detect_split_type(circuit_treatments)
 
         if split_type == "no_split":
             return None, circuits_analyzed_count
+            return None, circuits_analyzed
 
         # Build summary
         conflicting_descriptions = []
@@ -345,3 +359,15 @@ class CircuitAnalyzer:
             ),
             circuits_analyzed_count,
         )
+        return CircuitSplit(
+            citation=citation,
+            case_name=case_name,
+            split_type=split_type,
+            confidence=round(confidence, 2),
+            circuits_involved=circuits_involved,
+            conflicting_circuits=circuit_treatments,
+            summary=summary,
+            supreme_court_likely=supreme_court_likely,
+            key_cases=key_cases,
+        ), circuits_analyzed_count
+        ), circuits_analyzed

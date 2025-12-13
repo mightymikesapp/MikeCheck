@@ -264,7 +264,7 @@ class TestDeepShepardAnalyzer:
         suspect = results["300 U.S. 3"]
         assert suspect["citation"] == "300 U.S. 3"
         assert suspect["case_name"] == "Case C v. State"
-        assert suspect["risk_score"] > 0.7  # High risk
+        assert suspect["risk_score"] == 0.9  # High risk
         assert suspect["risk_level"] == "high"
         assert len(suspect["suspect_reliances"]) == 1
 

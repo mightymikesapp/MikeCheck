@@ -223,11 +223,12 @@ def test_location_type_field_in_signals():
     result = classifier.classify_treatment(citing_case, "410 U.S. 113")
 
     # All signals should have location_type field
-    assert all(hasattr(s, "location_type") for s in result.signals_found)
     assert all(s.location_type in ["body", "footnote"] for s in result.signals_found)
 
     # Check that we have signals from both locations
     body_signals = [s for s in result.signals_found if s.location_type == "body"]
     footnote_signals = [s for s in result.signals_found if s.location_type == "footnote"]
 
-    assert len(body_signals) > 0 or len(footnote_signals) > 0
+    # HTML contains signals in both locations
+    assert len(body_signals) > 0, "Expected body signals from 'affirmed'"
+    assert len(footnote_signals) > 0, "Expected footnote signals from 'distinguished'"

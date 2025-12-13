@@ -10,7 +10,7 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from typing import Any, cast
 
-from dateutil.relativedelta import relativedelta
+from dateutil.relativedelta import relativedelta  # type: ignore[import-untyped]
 from fastmcp import FastMCP
 
 from app.analysis.treatment_classifier import TreatmentAnalysis, TreatmentClassifier
@@ -245,7 +245,7 @@ async def check_case_validity_impl(
                     return (case, analysis, False)
 
         fetch_results: list[
-            tuple[CourtListenerCase, TreatmentAnalysis, bool] | Exception
+            tuple[CourtListenerCase, TreatmentAnalysis, bool] | BaseException
         ] = await asyncio.gather(
             *[fetch_with_limit(case, analysis, op_id) for case, analysis, op_id in fetch_tasks],
             return_exceptions=True,
@@ -254,7 +254,7 @@ async def check_case_validity_impl(
         case_to_enhanced_analysis = {}
         full_text_count = 0
         for result in fetch_results:
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 continue
             case, enhanced_analysis, success = result
             if success:
@@ -282,7 +282,7 @@ async def check_case_validity_impl(
         if treatments:
             aggregated = classifier.aggregate_treatments(treatments, citation)
 
-            warnings: list[TreatmentWarning] = []
+            warnings: list[str | TreatmentWarning] = []
             for neg_treatment in aggregated.negative_treatments:
                 for signal in neg_treatment.signals_found[:2]:
                     warnings.append(
@@ -449,8 +449,9 @@ async def treatment_timeline_impl(
     treatments.sort(key=lambda x: x.date_filed or "")
 
     # Parse start date
+    start_date_str = treatments[0].date_filed or ""
     try:
-        start_date = datetime.strptime(treatments[0].date_filed, "%Y-%m-%d")
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
     except (ValueError, TypeError):
         start_date = datetime.now()  # Fallback
 
@@ -477,6 +478,8 @@ async def treatment_timeline_impl(
     }
 
     for t in treatments:
+        if not t.date_filed:
+            continue
         try:
             t_date = datetime.strptime(t.date_filed, "%Y-%m-%d")
         except (ValueError, TypeError):

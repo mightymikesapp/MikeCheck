@@ -60,7 +60,7 @@ class APIKeyManager:
         """Hash a key for logging (never log raw keys)."""
         return hashlib.sha256(api_key.encode()).hexdigest()[:12]
 
-    def get_key_info(self, api_key: str) -> dict[str, str | None]:
+    def get_key_info(self, api_key: str) -> dict[str, bool | str | None]:
         """Get metadata about a key (for future use).
 
         Args:
@@ -110,7 +110,7 @@ async def verify_api_key(request: Request) -> Optional[str]:
         return None
 
     # Try to get API key from multiple sources
-    api_key = None
+    api_key: str | None = None
 
     # 1. Check Authorization header (Bearer token)
     auth_header = request.headers.get("Authorization", "")

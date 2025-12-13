@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict
-from typing import Any
+from typing import Any, cast
 
 from fastmcp import FastMCP
 
@@ -321,17 +321,19 @@ async def issue_map_impl(
         citing_result = await client.find_citing_cases(
             primary_case, limit=50, request_id=request_id
         )
-        for c in citing_result.get("results", []):
-            if not isinstance(c, dict):
-                continue
-            cases_to_process.append(
-                {
-                    "citation": c.get("citation", ["?"])[0],
-                    "case_name": c.get("caseName"),
-                    "text_context": c.get("snippet") or "",
-                    "source": "citing_primary",
-                }
-            )
+        raw_results = citing_result.get("results")
+        if isinstance(raw_results, list):
+            for c in raw_results:
+                if not isinstance(c, dict):
+                    continue
+                cases_to_process.append(
+                    {
+                        "citation": c.get("citation", ["?"])[0],
+                        "case_name": c.get("caseName"),
+                        "text_context": c.get("snippet") or "",
+                        "source": "citing_primary",
+                    }
+                )
 
     if citations:
         for cite in citations:
@@ -354,7 +356,7 @@ async def issue_map_impl(
             )
 
     # Grouping Logic
-    issues: defaultdict[str, dict] = defaultdict(
+    issues: defaultdict[str, dict[str, Any]] = defaultdict(
         lambda: {"source": "auto_discovered", "supporting_cases": []}
     )
 
@@ -474,10 +476,11 @@ async def check_api_status(request_id: str | None = None) -> dict[str, Any]:
         result = await client.lookup_citation("410 U.S. 113", request_id=request_id)
         latency = time.time() - start_time
 
-        if "error" in result:
+        if isinstance(result, dict) and "error" in result:
+            error_info = cast(dict[str, Any], result)
             return {
                 "status": "error",
-                "error": result["error"],
+                "error": error_info["error"],
                 "latency_seconds": latency,
             }
 

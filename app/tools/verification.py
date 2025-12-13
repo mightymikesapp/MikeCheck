@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from fastmcp import FastMCP
 
@@ -189,8 +189,20 @@ async def verify_quote_impl(
                 "job_id": job_id,
             }
 
-        opinion_id = opinion_ids[0]
-        full_text = await client.get_opinion_full_text(opinion_id, request_id=request_id)
+        opinion_id_raw = opinion_ids[0]
+        if not isinstance(opinion_id_raw, int):
+            return {
+                "error": "Invalid opinion identifier",
+                "error_code": "INVALID_OPINION_ID",
+                "citation": citation,
+                "case_name": case_name,
+                "quote": quote,
+                "job_id": job_id,
+            }
+
+        full_text = await client.get_opinion_full_text(
+            opinion_id_raw, request_id=request_id
+        )
 
         if not full_text:
             return {
@@ -393,12 +405,15 @@ async def batch_verify_quotes_impl(
                 }
 
             try:
-                result = await verify_quote_impl(
-                    quote,
-                    citation,
-                    pinpoint,
-                    request_id=request_id,
-                    job_id=job_id,
+                result = cast(
+                    dict[str, Any],
+                    await verify_quote_impl(
+                        quote,
+                        citation,
+                        pinpoint,
+                        request_id=request_id,
+                        job_id=job_id,
+                    ),
                 )
                 return index, result
             except Exception as exc:  # noqa: BLE001

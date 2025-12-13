@@ -234,12 +234,11 @@ def propagate_negative_treatment(network: CitationNetwork) -> list[str]:
 
     authorities_by_case: dict[str, list[str]] = defaultdict(list)
     dependents_by_authority: dict[str, list[str]] = defaultdict(list)
+    invalidated: set[str] = set()
     for edge in network.edges:
         authorities_by_case[edge.from_citation].append(edge.to_citation)
         dependents_by_authority[edge.to_citation].append(edge.from_citation)
 
-    invalidated: set[str] = set()
-    for edge in network.edges:
         treatment = (edge.treatment or "").strip().lower()
         if treatment in NEGATIVE_TREATMENT_LABELS:
             invalidated.add(edge.to_citation)

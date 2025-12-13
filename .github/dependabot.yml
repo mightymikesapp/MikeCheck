@@ -22,6 +22,8 @@ updates:
     groups:
       security-updates:
         applies-to: security-updates
+        patterns:
+          - "*"
     ignore:
       # Ignore major version updates for stability
       # - dependency-name: "fastapi"
@@ -46,3 +48,5 @@ updates:
     groups:
       security-updates:
         applies-to: security-updates
+        patterns:
+          - "*"

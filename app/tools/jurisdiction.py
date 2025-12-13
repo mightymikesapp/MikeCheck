@@ -12,7 +12,6 @@ from typing import Any
 from fastmcp import FastMCP
 
 from app.analysis.circuit_analyzer import CircuitAnalyzer
-from app.analysis.treatment_classifier import TreatmentClassifier
 from app.config import settings
 from app.logging_config import tool_logging
 from app.logging_utils import log_event, log_operation
@@ -22,12 +21,8 @@ from app.tools.treatment import _classify_parallel, _coerce_cases
 
 logger = logging.getLogger(__name__)
 
-# Initialize analyzers
-classifier = TreatmentClassifier()
-circuit_analyzer = CircuitAnalyzer(
-    min_cases_per_circuit=2,  # Need at least 2 cases per circuit
-    split_threshold=0.6,  # 60% threshold for dominant treatment
-)
+MAX_CITING_CASES_FOR_SPLIT_ANALYSIS = 200
+DEFAULT_SPLIT_THRESHOLD = 0.6
 
 jurisdiction_server: FastMCP[ToolPayload] = FastMCP(
     name="Jurisdiction Analysis Tools",
@@ -38,6 +33,7 @@ jurisdiction_server: FastMCP[ToolPayload] = FastMCP(
 async def find_circuit_splits_impl(
     citation: str,
     min_cases_per_circuit: int = 2,
+    split_threshold: float = DEFAULT_SPLIT_THRESHOLD,
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> dict[str, Any]:
@@ -46,6 +42,7 @@ async def find_circuit_splits_impl(
     Args:
         citation: Citation to analyze (e.g., "410 U.S. 113")
         min_cases_per_circuit: Minimum citing cases needed per circuit (default: 2)
+        split_threshold: Threshold for determining dominant treatment (default: 0.6)
         request_id: Optional request ID for logging
         job_id: Optional job ID for tracking
 
@@ -85,7 +82,7 @@ async def find_circuit_splits_impl(
         )
 
         # Step 2: Get citing cases (use larger limit to get good circuit coverage)
-        citing_limit = min(settings.max_citing_cases, 200)
+        citing_limit = min(settings.max_citing_cases, MAX_CITING_CASES_FOR_SPLIT_ANALYSIS)
         citing_cases_result = await client.find_citing_cases(
             citation, limit=citing_limit, request_id=request_id
         )
@@ -154,23 +151,21 @@ async def find_circuit_splits_impl(
         # Step 4: Analyze for circuit splits
         analyzer = CircuitAnalyzer(
             min_cases_per_circuit=min_cases_per_circuit,
-            split_threshold=0.6,
+            split_threshold=split_threshold,
         )
 
-        split = analyzer.detect_circuit_split(citation, case_name, valid_cases, treatments)
+        split, circuits_analyzed = analyzer.detect_circuit_split(
+            citation, case_name, valid_cases, treatments
+        )
 
         if not split:
-            # Count circuit coverage for informational purposes
-            circuit_groups = analyzer._group_by_circuit(valid_cases, treatments)
-            circuit_count = len(circuit_groups)
-
             return {
                 "citation": citation,
                 "case_name": case_name,
                 "split_detected": False,
-                "message": f"No circuit split detected across {circuit_count} circuit(s)",
+                "message": f"No circuit split detected across {circuits_analyzed} circuit(s)",
                 "total_citing_cases": len(citing_cases),
-                "circuits_analyzed": circuit_count,
+                "circuits_analyzed": circuits_analyzed,
                 "job_id": job_id,
             }
 
@@ -236,6 +231,7 @@ async def find_circuit_splits_impl(
 async def find_circuit_splits(
     citation: str,
     min_cases_per_circuit: int = 2,
+    split_threshold: float = DEFAULT_SPLIT_THRESHOLD,
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> dict[str, Any]:
@@ -249,6 +245,7 @@ async def find_circuit_splits(
         citation: The citation to analyze (e.g., "410 U.S. 113" or "Roe v. Wade")
         min_cases_per_circuit: Minimum citing cases needed per circuit to consider it
             (default: 2). Lower values may detect more splits but with less confidence.
+        split_threshold: Threshold for determining dominant treatment (default: 0.6)
         request_id: Optional request ID for logging
         job_id: Optional job ID for tracking
 
@@ -291,5 +288,9 @@ async def find_circuit_splits(
         - Track evolution of legal doctrine across circuits
     """
     return await find_circuit_splits_impl(
-        citation, min_cases_per_circuit, request_id=request_id, job_id=job_id
+        citation,
+        min_cases_per_circuit,
+        split_threshold=split_threshold,
+        request_id=request_id,
+        job_id=job_id,
     )

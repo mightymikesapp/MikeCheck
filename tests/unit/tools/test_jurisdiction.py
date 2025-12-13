@@ -336,11 +336,12 @@ class TestCircuitAnalyzer:
             ),
         ]
 
-        split = analyzer.detect_circuit_split(
+        split, circuits_analyzed = analyzer.detect_circuit_split(
             "410 U.S. 113", "Roe v. Wade", cases, treatments
         )
 
         assert split is not None
+        assert circuits_analyzed == 2
         assert split.split_type == "direct_conflict"
         assert "ca9" in split.circuits_involved
         assert "ca5" in split.circuits_involved
@@ -377,11 +378,12 @@ class TestCircuitAnalyzer:
             ),
         ]
 
-        split = analyzer.detect_circuit_split(
+        split, circuits_analyzed = analyzer.detect_circuit_split(
             "410 U.S. 113", "Roe v. Wade", cases, treatments
         )
 
         assert split is None
+        assert circuits_analyzed == 0
 
 
 @pytest.mark.unit
@@ -475,7 +477,7 @@ async def test_find_circuit_splits_with_split(mock_client, mocker):
     result = await find_circuit_splits_impl("384 U.S. 436", min_cases_per_circuit=2)
 
     assert result["split_detected"] is True
-    assert result["split_type"] in ["direct_conflict", "emerging_split", "potential_split"]
-    assert "ca9" in result["circuits_involved"] or "ca5" in result["circuits_involved"]
+    assert result["split_type"] == "direct_conflict"
+    assert set(result["circuits_involved"]) == {"ca9", "ca5"}
     assert "circuit_details" in result
-    assert len(result["circuit_details"]) >= 1
+    assert len(result["circuit_details"]) == 2

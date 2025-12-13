@@ -145,8 +145,17 @@ class CircuitAnalyzer:
         neutral = sum(1 for t in treatments if t.treatment_type == TreatmentType.NEUTRAL)
 
         # Determine dominant treatment
-        max_count = max(positive, negative, neutral)
-        if positive == max_count and positive / total >= self.split_threshold:
+        counts = {
+            TreatmentType.POSITIVE: positive,
+            TreatmentType.NEGATIVE: negative,
+            TreatmentType.NEUTRAL: neutral,
+        }
+        max_count = max(counts.values())
+        dominant_candidates = [t for t, count in counts.items() if count == max_count]
+
+        if len(dominant_candidates) > 1:
+            dominant = TreatmentType.UNKNOWN
+        elif positive == max_count and positive / total >= self.split_threshold:
             dominant = TreatmentType.POSITIVE
         elif negative == max_count and negative / total >= self.split_threshold:
             dominant = TreatmentType.NEGATIVE
@@ -240,7 +249,7 @@ class CircuitAnalyzer:
         case_name: str,
         cases: list[CourtListenerCase],
         treatments: list[TreatmentAnalysis],
-    ) -> CircuitSplit | None:
+    ) -> tuple[CircuitSplit | None, int]:
         """Detect if there's a circuit split for the given case.
 
         Args:
@@ -250,13 +259,14 @@ class CircuitAnalyzer:
             treatments: Treatment analyses (must match cases 1:1)
 
         Returns:
-            CircuitSplit if split detected, None otherwise
+            Tuple of (CircuitSplit if split detected, circuits analyzed)
         """
+        circuits_analyzed_count = 0
         if len(cases) != len(treatments):
             logger.warning(
                 f"Mismatched cases and treatments: {len(cases)} cases, {len(treatments)} treatments"
             )
-            return None
+            return None, circuits_analyzed_count
 
         # Group by circuit
         circuit_groups = self._group_by_circuit(cases, treatments)
@@ -270,14 +280,16 @@ class CircuitAnalyzer:
                 )
 
         # Need at least 2 circuits to have a split
-        if len(circuit_treatments) < 2:
-            return None
+        circuits_analyzed_count = len(circuit_treatments)
+
+        if circuits_analyzed_count < 2:
+            return None, circuits_analyzed_count
 
         # Detect split type
         split_type, confidence, circuits_involved = self._detect_split_type(circuit_treatments)
 
         if split_type == "no_split":
-            return None
+            return None, circuits_analyzed_count
 
         # Build summary
         conflicting_descriptions = []
@@ -319,14 +331,17 @@ class CircuitAnalyzer:
                     }
                 )
 
-        return CircuitSplit(
-            citation=citation,
-            case_name=case_name,
-            split_type=split_type,
-            confidence=round(confidence, 2),
-            circuits_involved=circuits_involved,
-            conflicting_circuits=circuit_treatments,
-            summary=summary,
-            supreme_court_likely=supreme_court_likely,
-            key_cases=key_cases,
+        return (
+            CircuitSplit(
+                citation=citation,
+                case_name=case_name,
+                split_type=split_type,
+                confidence=round(confidence, 2),
+                circuits_involved=circuits_involved,
+                conflicting_circuits=circuit_treatments,
+                summary=summary,
+                supreme_court_likely=supreme_court_likely,
+                key_cases=key_cases,
+            ),
+            circuits_analyzed_count,
         )

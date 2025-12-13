@@ -63,6 +63,14 @@ class FootnoteParser(HTMLParser):
                 self.in_footnote = True
                 self.footnote_div_depth = 1
             elif self.in_footnote and self.footnote_div_depth > 0:
+            is_footnote_div = False
+            for attr_name, attr_value in attrs:
+                if attr_name == "class" and attr_value:
+                    if "footnote" in attr_value.lower() or "fn" in attr_value.lower():
+                        self.in_footnote = True
+                        self.footnote_div_depth = 1
+                        is_footnote_div = True
+            if self.in_footnote and self.footnote_div_depth > 0 and not is_footnote_div:
                 self.footnote_div_depth += 1
         elif tag == "p":
             if not self.in_footnote:
@@ -154,6 +162,7 @@ class FootnoteParser(HTMLParser):
             # Pattern 1: Line starts with digit(s) followed by period and space
             footnote_start = re.match(r"^(\d+)\.\s+(.+)$", line_stripped)
             if footnote_start and i >= len(lines) * 0.6:  # Likely in footnote section
+            if footnote_start and (in_footnote_section or i > len(lines) * 0.5):
                 in_footnote_section = True
                 current_footnote_num = footnote_start.group(1)
                 footnote_content = footnote_start.group(2)
@@ -165,6 +174,9 @@ class FootnoteParser(HTMLParser):
             has_footnote_ref = bool(
                 re.search(r"\b(?:n\.|fn|note)\s*\d+\b", line_stripped, re.IGNORECASE)
             )
+
+            if has_footnote_ref and not footnote_start:
+                current_footnote_num = None
 
             if in_footnote_section or has_footnote_ref:
                 footnote_lines.append(line_stripped)

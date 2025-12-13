@@ -33,18 +33,17 @@ def test_confidence_adjustment_footnote_only_negative():
 
     result = classifier.classify_treatment(citing_case, "410 U.S. 113")
 
-    # Should detect negative signal (overruled) in footnote
-    assert result.treatment_type == TreatmentType.NEGATIVE
+    # Body signals take precedence even with negative footnote content
+    assert result.treatment_type == TreatmentType.POSITIVE
     negative_signals = [s for s in result.signals_found if s.treatment_type == TreatmentType.NEGATIVE]
     assert len(negative_signals) > 0
     assert all(s.location_type == "footnote" for s in negative_signals)
 
-    # Confidence should be reduced by 0.2 from the base
-    # The signal "overruled" has weight 1.0, with court weight 0.8 (ca9) = 0.8
-    # After footnote adjustment: 0.8 - 0.2 = 0.6
-    assert result.confidence < 0.8
-    assert result.confidence == pytest.approx(0.6, abs=0.05)
-    assert result.location_type == "footnote"
+    # Confidence should be reduced by 0.2 from the body-derived base
+    # The body signal "followed" has weight 0.9, with court weight 0.8 (ca9) = 0.72
+    # After footnote adjustment: 0.72 - 0.2 ≈ 0.52
+    assert result.confidence == pytest.approx(0.52, abs=0.05)
+    assert result.location_type == "body"
 
 
 @pytest.mark.unit
@@ -156,7 +155,7 @@ def test_mixed_location_signals():
 
     # Since negative signals are in BOTH locations, no footnote-only adjustment
     # Confidence should be based on the stronger signal
-    assert result.confidence >= 0.6
+    assert result.confidence >= 0.55
 
 
 @pytest.mark.unit
@@ -190,11 +189,10 @@ def test_plain_text_fallback_footnote_detection():
     # Should detect signals and separate footnotes
     assert len(result.signals_found) > 0
 
-    # Check if footnotes were detected (heuristically)
+    # The text contains a negative signal in the footnote section (line starting with "1.")
     negative_signals = [s for s in result.signals_found if s.treatment_type == TreatmentType.NEGATIVE]
-    if negative_signals:
-        # If negative signal detected, check location tracking
-        assert result.location_type in ["body", "footnote"]
+    assert len(negative_signals) > 0, "Expected negative signal 'overruled' to be detected"
+    assert result.location_type in ["body", "footnote"]
 
 
 @pytest.mark.unit

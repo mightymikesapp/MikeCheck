@@ -98,11 +98,11 @@ class MLTreatmentClassifier:
                 device=-1,  # CPU (use 0 for GPU)
             )
 
-            logger.info(f"Model loaded successfully: {model_name}")
+            logger.info("Model loaded successfully", extra={"model_name": model_name})
             MLTreatmentClassifier._model_loaded = True
 
         except Exception as e:
-            logger.error(f"Failed to load ML classifier model: {e}")
+            logger.error("Failed to load ML classifier model", extra={"error": str(e)})
             logger.info("ML classifier will be disabled")
             # Set to a dummy value to prevent repeated loading attempts
             self._pipeline = False

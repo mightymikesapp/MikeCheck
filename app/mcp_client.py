@@ -306,40 +306,58 @@ class CourtListenerClient:
                 )
                 raise
 
-    async def get_opinion_full_text(self, opinion_id: int, request_id: str | None = None) -> str:
+    async def get_opinion_full_text(
+        self, opinion_id: int, request_id: str | None = None, prefer_html: bool = False
+    ) -> str:
         """Get the full text of a specific opinion.
 
         Args:
             opinion_id: The CourtListener opinion ID
+            request_id: Optional request ID for logging
+            prefer_html: If True, prefer html_lawbox over plain_text for footnote preservation
 
         Returns:
-            Full text of the opinion (plain text format)
+            Full text of the opinion (plain text or HTML format depending on preference)
         """
-        cache_key = {"opinion_id": opinion_id, "field": "full_text"}
+        cache_key = {
+            "opinion_id": opinion_id,
+            "field": "full_text",
+            "prefer_html": prefer_html,
+        }
 
         # Check cache
         cached_text = await self.cache_manager.aget(CacheType.TEXT, cache_key)
-        if cached_text:
+        if cached_text is not None:
             return cast(str, cached_text)
 
         with log_operation(
             logger,
             tool_name="get_opinion_full_text",
             request_id=request_id,
-            query_params={"opinion_id": opinion_id},
+            query_params={"opinion_id": opinion_id, "prefer_html": prefer_html},
             event="courtlistener_full_text",
         ):
             try:
                 opinion = await self.get_opinion(opinion_id, request_id=request_id)
 
                 # Try different text fields in order of preference
-                text_fields = [
-                    "plain_text",  # Plain text version (most useful)
-                    "html_lawbox",  # HTML with citations
-                    "html",  # Standard HTML
-                    "html_columbia",  # Columbia HTML
-                    "html_anon_2020",  # Anonymized HTML
-                ]
+                # If prefer_html is True, prioritize html_lawbox for footnote preservation
+                if prefer_html:
+                    text_fields = [
+                        "html_lawbox",  # HTML with citations and footnote structure
+                        "plain_text",  # Plain text version
+                        "html",  # Standard HTML
+                        "html_columbia",  # Columbia HTML
+                        "html_anon_2020",  # Anonymized HTML
+                    ]
+                else:
+                    text_fields = [
+                        "plain_text",  # Plain text version (most useful)
+                        "html_lawbox",  # HTML with citations
+                        "html",  # Standard HTML
+                        "html_columbia",  # Columbia HTML
+                        "html_anon_2020",  # Anonymized HTML
+                    ]
 
                 for field in text_fields:
                     text_value = opinion.get(field)

@@ -129,7 +129,16 @@ async def check_case_validity_impl(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> TreatmentResult:
-    """Check if a case is still good law by analyzing citing cases."""
+    """Check if a case is still good law by analyzing citing cases (implementation).
+
+    Args:
+        citation: The citation to check (e.g., "410 U.S. 113").
+        request_id: Optional request ID.
+        job_id: Optional job ID.
+
+    Returns:
+        TreatmentResult indicating if the case is good law, with analysis details.
+    """
     client = get_client()
 
     with log_operation(
@@ -348,7 +357,18 @@ async def get_citing_cases_impl(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> dict[str, Any]:
-    """Get cases that cite a given citation."""
+    """Get cases that cite a given citation (implementation).
+
+    Args:
+        citation: The citation to look up.
+        treatment_filter: Optional filter for treatment type (e.g., "negative").
+        limit: Maximum number of cases to return.
+        request_id: Optional request ID.
+        job_id: Optional job ID.
+
+    Returns:
+        Dictionary containing list of citing cases with treatment info.
+    """
     client = get_client()
     with log_operation(
         logger,
@@ -411,7 +431,17 @@ async def treatment_timeline_impl(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> dict[str, Any]:
-    """Generate a timeline of treatment over time."""
+    """Generate a timeline of treatment over time (implementation).
+
+    Args:
+        citation: The citation to analyze.
+        buckets: Time bucket size (e.g., "5y", "1y").
+        request_id: Optional request ID.
+        job_id: Optional job ID.
+
+    Returns:
+        Dictionary with timeline buckets and Mermaid visualization syntax.
+    """
     client = get_client()
 
     # 1. Look up target case

@@ -506,6 +506,15 @@ class MermaidGenerator:
             lines.append("    end")
 
     def _get_color(self, style_class: str, palette: dict[str, str]) -> str:
+        """Get the color code for a style class from the palette.
+
+        Args:
+            style_class: The class name (e.g., 'positive', 'scotus').
+            palette: The color palette dictionary.
+
+        Returns:
+            Hex color code.
+        """
         return palette.get(style_class, palette.get("neutral", "#666"))
 
     def generate_graph(

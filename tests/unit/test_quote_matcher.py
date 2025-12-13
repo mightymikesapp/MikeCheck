@@ -438,7 +438,7 @@ def test_get_significant_words_filters_stopwords(matcher):
     """Test that _get_significant_words filters out common stopwords."""
     text = "the quick brown fox jumps over the lazy dog"
     significant = matcher._get_significant_words(text)
-    
+
     # Should filter out stopwords like "the", "over"
     assert "quick" in significant
     assert "brown" in significant
@@ -455,7 +455,7 @@ def test_get_significant_words_filters_short_words(matcher):
     """Test that words with 2 or fewer characters are filtered."""
     text = "I am a ok yes no go programmer"
     significant = matcher._get_significant_words(text)
-    
+
     # Should filter out short words (<=2 chars)
     assert "programmer" in significant
     assert "yes" in significant
@@ -488,7 +488,7 @@ def test_get_significant_words_mixed_case(matcher):
     """Test that _get_significant_words handles mixed case."""
     text = "The SUPREME Court decided this CASE"
     significant = matcher._get_significant_words(text)
-    
+
     # Stopwords should be filtered regardless of case
     # Note: method works on already-normalized (lowercased) text in practice
     assert "supreme" in significant or "SUPREME" in significant
@@ -502,7 +502,7 @@ def test_get_significant_words_legal_terminology(matcher):
     """Test with common legal terms."""
     text = "plaintiff defendant jurisdiction precedent statute"
     significant = matcher._get_significant_words(text)
-    
+
     # All legal terms should be preserved (none are stopwords)
     assert "plaintiff" in significant
     assert "defendant" in significant
@@ -517,15 +517,15 @@ def test_get_significant_words_legal_terminology(matcher):
 def test_find_quote_fuzzy_performance_with_long_source(matcher):
     """Test that fuzzy matching performs efficiently on long source text."""
     import time
-    
+
     # Create a long source text (10,000 words)
     long_source = " ".join(["word" + str(i) for i in range(10000)])
     quote = "word5000 word5001 word5002 word5003 word5004"
-    
+
     start_time = time.time()
     matches = matcher.find_quote_fuzzy(quote, long_source)
     elapsed = time.time() - start_time
-    
+
     # Should complete in reasonable time (< 2 seconds for this size)
     assert elapsed < 2.0
     assert len(matches) > 0
@@ -540,7 +540,7 @@ def test_find_quote_fuzzy_quick_rejection_low_coverage(matcher):
     the right to privacy. In Griswold v. Connecticut, we held that this
     right extends to marital relations.
     """
-    
+
     # Should quickly reject since less than 30% of significant words are present
     matches = matcher.find_quote_fuzzy(quote, source)
     assert len(matches) == 0
@@ -556,7 +556,7 @@ def test_find_quote_fuzzy_accepts_sufficient_coverage(matcher):
     right extends to marital relations. These constitutional protections
     are fundamental rights.
     """
-    
+
     # Should find matches since >30% of significant words are present
     matches = matcher.find_quote_fuzzy(quote, source)
     assert len(matches) > 0
@@ -567,7 +567,7 @@ def test_find_quote_fuzzy_handles_no_significant_words(matcher):
     """Test fuzzy matching when quote has no significant words (all stopwords)."""
     quote = "the and or but if"
     source = "The quick brown fox jumps over the lazy dog"
-    
+
     # Should fallback to all words when no significant words found
     matches = matcher.find_quote_fuzzy(quote, source)
     # May or may not find matches, but should not crash
@@ -584,9 +584,9 @@ def test_find_quote_fuzzy_jaccard_filtering(matcher):
     This constitutional protection extends to personal decisions.
     These rights are essential to liberty and freedom under law.
     """
-    
+
     matches = matcher.find_quote_fuzzy(quote, source)
-    
+
     # Should find the section about privacy and constitutional protection
     assert len(matches) > 0
     # Best match should contain relevant words
@@ -599,9 +599,9 @@ def test_find_quote_fuzzy_candidate_limit(matcher):
     # Create source with many similar regions
     repeated_text = "The court decided this case carefully. " * 50
     quote = "The court decided this case carefully"
-    
+
     matches = matcher.find_quote_fuzzy(quote, repeated_text, max_matches=5)
-    
+
     # Should return at most max_matches
     assert len(matches) <= 5
     # Should still find matches
@@ -614,9 +614,9 @@ def test_find_quote_fuzzy_window_size_variation(matcher):
     quote = "the right to privacy is fundamental"
     # Source has the quote with extra words inserted
     source = "The Supreme Court held that the right to personal privacy is a fundamental right"
-    
+
     matches = matcher.find_quote_fuzzy(quote, source, max_matches=3)
-    
+
     # Should find match despite length variation
     assert len(matches) > 0
     assert matches[0].similarity >= 0.85
@@ -630,9 +630,9 @@ def test_find_quote_fuzzy_early_termination_on_perfect_match(matcher):
     Some initial text here. The quick brown fox jumps over the lazy dog.
     More text after. Additional content follows.
     """
-    
+
     matches = matcher.find_quote_fuzzy(quote, source)
-    
+
     # Should find near-perfect match
     assert len(matches) > 0
     assert matches[0].similarity >= 0.98
@@ -646,12 +646,12 @@ def test_find_quote_fuzzy_deduplication_of_overlapping_matches(matcher):
     The privacy rights of individuals are protected. Privacy rights extend
     to personal decisions. Constitutional privacy rights are fundamental.
     """
-    
+
     matches = matcher.find_quote_fuzzy(quote, source, max_matches=10)
-    
+
     # Should find multiple matches but deduplicate overlapping ones
     assert len(matches) > 0
-    
+
     # Verify positions are sufficiently separated
     if len(matches) > 1:
         for i in range(len(matches) - 1):
@@ -665,9 +665,9 @@ def test_find_quote_fuzzy_with_punctuation_variations(matcher):
     """Test fuzzy matching handles punctuation variations."""
     quote = "the right to privacy"
     source = "The right to privacy, which is fundamental, protects individuals."
-    
+
     matches = matcher.find_quote_fuzzy(quote, source)
-    
+
     assert len(matches) > 0
     assert matches[0].similarity >= 0.95
 
@@ -678,9 +678,9 @@ def test_find_quote_fuzzy_phase_two_expansion(matcher):
     quote = "The Supreme Court held that privacy is fundamental"
     # Source has the quote with slight variations in boundary
     source = "In this case, the Supreme Court held that privacy is a fundamental right protected by the Constitution."
-    
+
     matches = matcher.find_quote_fuzzy(quote, source)
-    
+
     # Should find good match via expansion/contraction
     assert len(matches) > 0
     assert matches[0].similarity >= 0.85
@@ -695,9 +695,9 @@ def test_find_quote_fuzzy_multiple_candidates_evaluated(matcher):
     Later, the appeals court decided this important case.
     Finally, the supreme court decided the landmark case.
     """
-    
+
     matches = matcher.find_quote_fuzzy(quote, source, max_matches=3)
-    
+
     # Should find multiple matches from different regions
     assert len(matches) >= 2
 
@@ -711,9 +711,9 @@ def test_verify_quote_with_optimized_fuzzy_matching(matcher):
     individuals including privacy rights. These constitutional protections
     are essential to liberty.
     """
-    
+
     result = matcher.verify_quote(quote, source, "Test Citation")
-    
+
     # Should find fuzzy match using optimized algorithm
     assert result.found is True
     assert result.exact_match is False
@@ -726,10 +726,10 @@ def test_stopwords_constant_is_comprehensive(matcher):
     """Test that STOPWORDS constant contains common English stopwords."""
     # Verify some common stopwords are included
     common_stopwords = ["the", "and", "or", "but", "in", "on", "at", "to", "for", "of"]
-    
+
     for word in common_stopwords:
         assert word in matcher.STOPWORDS
-    
+
     # Verify it's a reasonable size (should have dozens of stopwords)
     assert len(matcher.STOPWORDS) >= 50
 
@@ -739,9 +739,9 @@ def test_fuzzy_match_with_very_short_quote(matcher):
     """Test fuzzy matching with very short quotes (edge case)."""
     quote = "the court"
     source = "The court decided this case."
-    
+
     matches = matcher.find_quote_fuzzy(quote, source)
-    
+
     # Should handle short quotes gracefully
     assert isinstance(matches, list)
     if len(matches) > 0:
@@ -753,9 +753,9 @@ def test_fuzzy_match_quote_longer_than_source(matcher):
     """Test fuzzy matching when quote is longer than source."""
     quote = "This is a very long quote that exceeds the source text length significantly"
     source = "Short source"
-    
+
     matches = matcher.find_quote_fuzzy(quote, source)
-    
+
     # Should return empty list
     assert matches == []
 
@@ -769,10 +769,10 @@ def test_jaccard_score_threshold_filtering(matcher):
     Testimony was given by several witnesses.
     The jury deliberated for three hours.
     """
-    
+
     # Source has minimal overlap with quote's significant words
     matches = matcher.find_quote_fuzzy(quote, source)
-    
+
     # Should find no matches due to low Jaccard scores
     assert len(matches) == 0
 
@@ -782,9 +782,9 @@ def test_fuzzy_match_preserves_original_text(matcher):
     """Test that fuzzy matches return original (non-normalized) matched text."""
     quote = "privacy rights"
     source = "The PRIVACY RIGHTS of individuals are protected."
-    
+
     matches = matcher.find_quote_fuzzy(quote, source)
-    
+
     assert len(matches) > 0
     # Matched text should preserve original case/formatting
     assert "PRIVACY RIGHTS" in matches[0].matched_text
@@ -795,9 +795,9 @@ def test_find_differences_with_normalized_comparison(matcher):
     """Test that _find_differences uses normalized text for comparison."""
     expected = "The   quick\nbrown   fox"
     actual = "The quick brown fox"
-    
+
     differences = matcher._find_differences(expected, actual)
-    
+
     # After normalization, these should be identical
     assert len(differences) == 0
 
@@ -807,9 +807,9 @@ def test_verify_quote_empty_source(matcher):
     """Test verify_quote with empty source text."""
     quote = "Some quote text"
     source = ""
-    
+
     result = matcher.verify_quote(quote, source, "Test")
-    
+
     assert result.found is False
     assert result.similarity == 0.0
     assert len(result.matches) == 0

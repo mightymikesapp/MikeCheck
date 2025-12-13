@@ -8,17 +8,13 @@ This module provides:
 """
 
 import logging
-from typing import Any, Callable, Optional, TypeVar, cast
+from typing import Optional
 
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from starlette.requests import Request
 
 logger = logging.getLogger(__name__)
-
-
-F = TypeVar("F", bound=Callable[..., Any])
 
 
 class RateLimiter:
@@ -53,7 +49,7 @@ class RateLimiter:
         )
 
     @staticmethod
-    def _get_key(request: Request) -> str:
+    def _get_key(request) -> str:
         """Get rate limit key from request.
 
         Prioritizes API key, falls back to IP address.
@@ -127,7 +123,7 @@ def get_rate_limiter() -> RateLimiter:
     return _rate_limiter
 
 
-def rate_limit(limit: str = "100/minute") -> Callable[[F], F]:
+def rate_limit(limit: str = "100/minute"):
     """Decorator to apply rate limiting to an endpoint.
 
     Args:
@@ -137,14 +133,14 @@ def rate_limit(limit: str = "100/minute") -> Callable[[F], F]:
         Decorated function with rate limiting
     """
 
-    def decorator(func: F) -> F:
+    def decorator(func):
         limiter = get_rate_limiter()
-        return cast(F, limiter.limiter.limit(limit)(func))
+        return limiter.limiter.limit(limit)(func)
 
     return decorator
 
 
-def rate_limit_dynamic(endpoint: str) -> Callable[[F], F]:
+def rate_limit_dynamic(endpoint: str):
     """Decorator to apply dynamic rate limiting based on endpoint.
 
     Args:
@@ -154,13 +150,13 @@ def rate_limit_dynamic(endpoint: str) -> Callable[[F], F]:
         Decorated function with dynamic rate limiting
     """
 
-    def decorator(func: F) -> F:
+    def decorator(func):
         limiter = get_rate_limiter()
         limit = limiter.get_limit_for_endpoint(endpoint)
         if limit is None:
             # No rate limit
             return func
-        return cast(F, limiter.limiter.limit(limit)(func))
+        return limiter.limiter.limit(limit)(func)
 
     return decorator
 
@@ -169,9 +165,7 @@ class RateLimitExceptionHandler:
     """Handle rate limit exceeded exceptions."""
 
     @staticmethod
-    def handle_rate_limit_exceeded(
-        exc: RateLimitExceeded, request: Request
-    ) -> dict[str, str | None]:
+    def handle_rate_limit_exceeded(exc: RateLimitExceeded, request) -> dict:
         """Handle rate limit exceeded exception.
 
         Args:

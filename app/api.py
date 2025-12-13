@@ -223,16 +223,16 @@ async def add_security_headers(
 templates = Jinja2Templates(directory="app/templates")
 
 
-class AnalysisRequest(BaseModel):  # type: ignore[misc]
+class AnalysisRequest(BaseModel):
     citation: str
 
 
-class SearchRequest(BaseModel):  # type: ignore[misc]
+class SearchRequest(BaseModel):
     query: str
     limit: int = 10
 
 
-class ResearchRequest(BaseModel):  # type: ignore[misc]
+class ResearchRequest(BaseModel):
     citations: List[str]
     key_questions: Optional[List[str]] = None
 

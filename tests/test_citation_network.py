@@ -355,10 +355,10 @@ def test_network_with_duplicate_citations():
 def test_propagate_negative_treatment_transitive():
     """Downstream cases relying solely on invalidated authority should be flagged."""
 
-    def _case(citation: str) -> CaseNode:
+    def _case(citation: str, case_name: str) -> CaseNode:
         return CaseNode(
             citation=citation,
-            case_name=f"Case {citation}",
+            case_name=case_name,
             date_filed=None,
             court=None,
             cluster_id=None,
@@ -366,47 +366,57 @@ def test_propagate_negative_treatment_transitive():
             metadata={},
         )
 
-    nodes = {
-        citation: _case(citation)
-        for citation in ["A", "B", "C", "D", "E", "F"]
+    citations = {
+        "Brown v. Board of Education, 347 U.S. 483 (1954)": "Brown v. Board of Education",
+        "Plessy v. Ferguson, 163 U.S. 537 (1896)": "Plessy v. Ferguson",
+        "Cooper v. Aaron, 358 U.S. 1 (1958)": "Cooper v. Aaron",
+        "Alexander v. Holmes County Board of Education, 396 U.S. 19 (1969)": (
+            "Alexander v. Holmes County Board of Education"
+        ),
+        "Regents of the Univ. of California v. Bakke, 438 U.S. 265 (1978)": (
+            "Regents of the Univ. of California v. Bakke"
+        ),
+        "Grutter v. Bollinger, 539 U.S. 306 (2003)": "Grutter v. Bollinger",
     }
+
+    nodes = {citation: _case(citation, case_name) for citation, case_name in citations.items()}
 
     edges = [
         CitationEdge(
-            from_citation="A",
-            to_citation="B",
+            from_citation="Brown v. Board of Education, 347 U.S. 483 (1954)",
+            to_citation="Plessy v. Ferguson, 163 U.S. 537 (1896)",
             depth=1,
             treatment="overruled",
             confidence=1.0,
             excerpt="",
         ),
         CitationEdge(
-            from_citation="C",
-            to_citation="B",
+            from_citation="Cooper v. Aaron, 358 U.S. 1 (1958)",
+            to_citation="Plessy v. Ferguson, 163 U.S. 537 (1896)",
             depth=1,
             treatment=None,
             confidence=0.0,
             excerpt="",
         ),
         CitationEdge(
-            from_citation="D",
-            to_citation="C",
+            from_citation="Alexander v. Holmes County Board of Education, 396 U.S. 19 (1969)",
+            to_citation="Cooper v. Aaron, 358 U.S. 1 (1958)",
             depth=2,
             treatment=None,
             confidence=0.0,
             excerpt="",
         ),
         CitationEdge(
-            from_citation="E",
-            to_citation="B",
+            from_citation="Regents of the Univ. of California v. Bakke, 438 U.S. 265 (1978)",
+            to_citation="Plessy v. Ferguson, 163 U.S. 537 (1896)",
             depth=1,
             treatment=None,
             confidence=0.0,
             excerpt="",
         ),
         CitationEdge(
-            from_citation="E",
-            to_citation="F",
+            from_citation="Regents of the Univ. of California v. Bakke, 438 U.S. 265 (1978)",
+            to_citation="Grutter v. Bollinger, 539 U.S. 306 (2003)",
             depth=1,
             treatment=None,
             confidence=0.0,
@@ -415,7 +425,7 @@ def test_propagate_negative_treatment_transitive():
     ]
 
     network = CitationNetwork(
-        root_citation="A",
+        root_citation="Brown v. Board of Education, 347 U.S. 483 (1954)",
         nodes=nodes,
         edges=edges,
         depth_map={citation: 0 for citation in nodes},
@@ -425,4 +435,7 @@ def test_propagate_negative_treatment_transitive():
 
     suspects = propagate_negative_treatment(network)
 
-    assert suspects == ["C", "D"]
+    assert suspects == [
+        "Alexander v. Holmes County Board of Education, 396 U.S. 19 (1969)",
+        "Cooper v. Aaron, 358 U.S. 1 (1958)",
+    ]

@@ -7,8 +7,8 @@ serving as a free alternative to Shepard's Citations and KeyCite.
 import asyncio
 import logging
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 from datetime import datetime
+from functools import partial
 from typing import Any, cast
 
 from dateutil.relativedelta import relativedelta
@@ -55,9 +55,16 @@ async def _get_ml_classifier() -> Any:
     loop = asyncio.get_running_loop()
     try:
         _ml_classifier = await loop.run_in_executor(None, _load_ml_classifier)
-        logger.info("ML classifier initialized")
+        logger.info(
+            "ML classifier initialized",
+            extra={"component": "ml_classifier"},
+        )
     except Exception as e:  # pragma: no cover - defensive logging
-        logger.warning(f"Failed to initialize ML classifier: {e}")
+        logger.warning(
+            "Failed to initialize ML classifier",
+            extra={"component": "ml_classifier", "error": str(e)},
+            exc_info=True,
+        )
         _ml_classifier = False  # Mark as failed to avoid retry
         return None
 

@@ -198,11 +198,7 @@ def record_tool_call(tool_name: str, duration_seconds: float, error: bool = Fals
         duration_seconds: Execution duration
         error: Whether the call resulted in an error
     """
-    if (
-        not PROMETHEUS_AVAILABLE
-        or mcp_tool_calls_total is None
-        or mcp_tool_duration_seconds is None
-    ):
+    if not PROMETHEUS_AVAILABLE or mcp_tool_calls_total is None:
         return
 
     status = "error" if error else "success"
@@ -271,11 +267,7 @@ def record_courtlistener_call(
         status_code: HTTP status code
         duration_seconds: Request duration
     """
-    if (
-        not PROMETHEUS_AVAILABLE
-        or courtlistener_api_calls_total is None
-        or courtlistener_api_duration_seconds is None
-    ):
+    if not PROMETHEUS_AVAILABLE or courtlistener_api_calls_total is None:
         return
 
     courtlistener_api_calls_total.labels(endpoint=endpoint, status_code=status_code).inc()
@@ -338,11 +330,7 @@ def record_circuit_breaker_open(service: str) -> None:
     Args:
         service: Name of service (e.g., "courtlistener")
     """
-    if (
-        not PROMETHEUS_AVAILABLE
-        or circuit_breaker_open_total is None
-        or circuit_breaker_state is None
-    ):
+    if not PROMETHEUS_AVAILABLE or circuit_breaker_open_total is None:
         return
 
     circuit_breaker_open_total.labels(service=service).inc()

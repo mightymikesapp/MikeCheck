@@ -85,10 +85,6 @@ allow_untyped_decorators = true
 module = ["fastmcp", "fastmcp.*"]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = ["app.tools.network"]
-ignore_errors = true
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

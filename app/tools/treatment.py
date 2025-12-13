@@ -7,8 +7,8 @@ serving as a free alternative to Shepard's Citations and KeyCite.
 import asyncio
 import logging
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 from datetime import datetime
+from functools import partial
 from typing import Any, cast
 
 from dateutil.relativedelta import relativedelta
@@ -73,9 +73,7 @@ def _get_classification_executor() -> ProcessPoolExecutor:
     """Return a lazily initialized process pool for classification."""
     global _classification_executor
     if _classification_executor is None:
-        _classification_executor = ProcessPoolExecutor(
-            max_workers=_classifier_concurrency()
-        )
+        _classification_executor = ProcessPoolExecutor(max_workers=_classifier_concurrency())
     return _classification_executor
 
 
@@ -104,9 +102,7 @@ async def _classify_parallel(
 
     async def classify(case: CourtListenerCase) -> TreatmentAnalysis:
         async with semaphore:
-            return await loop.run_in_executor(
-                None, classifier.classify_treatment, case, citation
-            )
+            return await loop.run_in_executor(None, classifier.classify_treatment, case, citation)
 
     return await asyncio.gather(
         *(classify(case) for case in cases),
@@ -234,9 +230,7 @@ async def _classify_case_in_executor(
     async with semaphore:
         loop = asyncio.get_running_loop()
         executor = _get_classification_executor()
-        return await loop.run_in_executor(
-            executor, classifier.classify_treatment, case, citation
-        )
+        return await loop.run_in_executor(executor, classifier.classify_treatment, case, citation)
 
 
 async def check_case_validity_impl(
@@ -312,18 +306,6 @@ async def check_case_validity_impl(
         # Parallelize initial analysis (MEDIUM Bottleneck #4 fix)
         analyses = await _classify_parallel(citing_cases, citation)
 
-        # ML Refinement Pass (Smart Second Pass)
-        # If ML classifier is enabled, refine ambiguous cases
-        if settings.enable_ml_classifier:
-            refined_analyses = []
-            for analysis in analyses:
-                if isinstance(analysis, BaseException):
-                    refined_analyses.append(analysis)
-                else:
-                    refined = await _refine_with_ml_classifier(analysis, citation)
-                    refined_analyses.append(refined)
-            analyses = refined_analyses
-
         initial_treatments = []
         cases_for_full_text = []
         strategy = settings.fetch_full_text_strategy
@@ -389,13 +371,38 @@ async def check_case_validity_impl(
                 case_id = case.get("id") or id(case)
                 case_to_enhanced_analysis[case_id] = enhanced_analysis
 
-        treatments = []
-        for citing_case, initial_analysis in initial_treatments:
+        enhanced_analyses: list[TreatmentAnalysis | BaseException] = []
+        for citing_case, analysis in zip(citing_cases, analyses):
+            if isinstance(analysis, BaseException):
+                enhanced_analyses.append(analysis)
+                continue
+
             case_id = citing_case.get("id") or id(citing_case)
-            if case_id in case_to_enhanced_analysis:
-                treatments.append(case_to_enhanced_analysis[case_id])
-            else:
-                treatments.append(initial_analysis)
+            enhanced_analyses.append(case_to_enhanced_analysis.get(case_id, analysis))
+
+        # ML Refinement Pass (Smart Second Pass) after full-text enhancement
+        if settings.enable_ml_classifier:
+            semaphore = asyncio.Semaphore(4)
+
+            async def refine_with_limit(
+                index: int, item: TreatmentAnalysis | BaseException
+            ) -> tuple[int, TreatmentAnalysis | BaseException]:
+                if isinstance(item, BaseException):
+                    return index, item
+                async with semaphore:
+                    refined = await _refine_with_ml_classifier(item, citation)
+                    return index, refined
+
+            refinement_tasks = [
+                refine_with_limit(idx, analysis) for idx, analysis in enumerate(enhanced_analyses)
+            ]
+            refinement_results = await asyncio.gather(*refinement_tasks)
+            refined_map = {idx: result for idx, result in refinement_results}
+            enhanced_analyses = [refined_map[idx] for idx in range(len(enhanced_analyses))]
+
+        treatments = [
+            analysis for analysis in enhanced_analyses if not isinstance(analysis, BaseException)
+        ]
 
         log_event(
             logger,

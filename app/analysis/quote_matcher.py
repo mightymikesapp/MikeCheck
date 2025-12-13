@@ -49,7 +49,7 @@ class QuoteMatcher:
         "have", "from", "or", "one", "had", "by", "word", "but", "not", "what",
         "all", "were", "we", "when", "your", "can", "said", "there", "use", "an",
         "each", "which", "she", "do", "how", "their", "if", "will", "up", "other",
-        "about", "out", "many", "then", "them", "these", "so", "some", "her",
+        "about", "out", "many", "then", "them", "these", "so", "some", "her", "over",
         "would", "make", "like", "him", "into", "time", "has", "look", "two",
         "more", "write", "go", "see", "number", "no", "way", "could", "people",
         "my", "than", "first", "water", "been", "call", "who", "oil", "its", "now",
@@ -295,7 +295,8 @@ class QuoteMatcher:
                 # Check bounds to avoid redundant work if tolerance is small
                 if min_size < target_size or max_size > target_size:
                     for size in range(min_size, max_size + 1):
-                        if size == target_size: continue
+                        if size == target_size:
+                            continue
 
                         end = start + size
                         window = normalized_source[start:end]

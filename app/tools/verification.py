@@ -132,15 +132,17 @@ async def verify_quote_impl(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> QuoteVerificationResult:
-    """Verify a quote appears in the cited source.
+    """Verify a quote appears in the cited source (implementation).
 
     Args:
-        quote: The quote to verify
-        citation: The citation (e.g., "410 U.S. 113")
-        pinpoint: Optional pinpoint citation (e.g., "at 153")
+        quote: The quote to verify.
+        citation: The citation (e.g., "410 U.S. 113").
+        pinpoint: Optional pinpoint citation (e.g., "at 153").
+        request_id: Optional request ID.
+        job_id: Optional job ID.
 
     Returns:
-        Dictionary with verification results
+        Dictionary with verification results.
     """
     client = get_client()
 
@@ -348,13 +350,15 @@ async def batch_verify_quotes_impl(
     request_id: str | None = None,
     job_id: str | None = None,
 ) -> dict[str, Any]:
-    """Verify multiple quotes in batch.
+    """Verify multiple quotes in batch (implementation).
 
     Args:
-        quotes: List of dicts with keys: "quote", "citation", optional "pinpoint"
+        quotes: List of dicts with keys: "quote", "citation", optional "pinpoint".
+        request_id: Optional request ID.
+        job_id: Optional job ID.
 
     Returns:
-        Dictionary with batch verification results
+        Dictionary with batch verification results.
     """
     import asyncio
 

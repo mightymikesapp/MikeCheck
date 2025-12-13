@@ -136,6 +136,8 @@ class Settings(BaseSettings):
     ml_classifier_confidence_threshold: float = Field(
         default=0.6,
         description="Confidence threshold below which ML classifier is triggered",
+        ge=0.0,
+        le=1.0,
     )
 
     # Citation network settings

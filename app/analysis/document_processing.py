@@ -39,6 +39,7 @@ class FootnoteParser(HTMLParser):
         self.current_footnote_num: str | None = None
         self.in_footnote = False
         self.in_body = False
+        self.footnote_div_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Handle opening HTML tags."""
@@ -53,19 +54,31 @@ class FootnoteParser(HTMLParser):
                     self.current_footnote_num = attr_value
         elif tag == "div":
             # Check for footnote-related classes
+            starts_footnote_div = False
             for attr_name, attr_value in attrs:
                 if attr_name == "class" and attr_value:
                     if "footnote" in attr_value.lower() or "fn" in attr_value.lower():
-                        self.in_footnote = True
+                        starts_footnote_div = True
+            if starts_footnote_div:
+                self.in_footnote = True
+                self.footnote_div_depth = 1
+            elif self.in_footnote and self.footnote_div_depth > 0:
+                self.footnote_div_depth += 1
         elif tag == "p":
             if not self.in_footnote:
                 self.in_body = True
 
     def handle_endtag(self, tag: str) -> None:
         """Handle closing HTML tags."""
-        if tag == "fn" or (tag == "div" and self.in_footnote):
+        if tag == "fn":
             self.in_footnote = False
             self.current_footnote_num = None
+            self.footnote_div_depth = 0
+        elif tag == "div" and self.footnote_div_depth > 0:
+            self.footnote_div_depth -= 1
+            if self.footnote_div_depth == 0:
+                self.in_footnote = False
+                self.current_footnote_num = None
         elif tag == "p" and self.in_body:
             self.in_body = False
         self.current_tag = None
@@ -140,7 +153,7 @@ class FootnoteParser(HTMLParser):
             # Check if this line starts a footnote
             # Pattern 1: Line starts with digit(s) followed by period and space
             footnote_start = re.match(r"^(\d+)\.\s+(.+)$", line_stripped)
-            if footnote_start and i > len(lines) * 0.7:  # Likely in footnote section
+            if footnote_start and i >= len(lines) * 0.6:  # Likely in footnote section
                 in_footnote_section = True
                 current_footnote_num = footnote_start.group(1)
                 footnote_content = footnote_start.group(2)

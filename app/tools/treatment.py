@@ -7,8 +7,8 @@ serving as a free alternative to Shepard's Citations and KeyCite.
 import asyncio
 import logging
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 from datetime import datetime
+from functools import partial
 from typing import Any, cast
 
 from dateutil.relativedelta import relativedelta
@@ -188,8 +188,11 @@ async def _refine_with_ml_classifier(
 
         return analysis
 
-    except Exception as e:
-        logger.error(f"ML classifier refinement failed: {e}")
+    except Exception:
+        logger.exception(
+            "ML classifier refinement failed",
+            extra={"analysis_id": getattr(analysis, "id", None)},
+        )
         return analysis
 
 

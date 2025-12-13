@@ -49,7 +49,15 @@ class IssueDiscoverer:
         return {"label": "General Application", "source": "fallback"}
 
     def _find_nearest_header(self, text: str, citation: str) -> str | None:
-        """Find the nearest section header appearing before the citation."""
+        """Find the nearest section header appearing before the citation.
+
+        Args:
+            text: Text to search in.
+            citation: Citation string to locate.
+
+        Returns:
+            Found section header (title cased) or None.
+        """
 
         # Find citation position
         try:
@@ -95,7 +103,15 @@ class IssueDiscoverer:
         return None
 
     def _extract_key_phrase(self, text: str, citation: str) -> str | None:
-        """Extract a likely topic keyword from the context."""
+        """Extract a likely topic keyword from the context.
+
+        Args:
+            text: Text to search in.
+            citation: Citation string.
+
+        Returns:
+            Extracted keyword phrase or None.
+        """
         # This is harder. We look for "regarding X", "issue of X".
 
         # Find context around citation

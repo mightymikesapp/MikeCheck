@@ -417,18 +417,18 @@ async def test_find_citing_cases_deduplication_by_id(client_instance):
     case1 = {"id": 12345, "caseName": "Test Case", "dateFiled": "2020-01-01", "citation": ["123 U.S. 456"]}
     case2 = {"id": 12345, "caseName": "Test Case", "dateFiled": "2020-01-01", "citation": ["123 U.S. 456"]}
     case3 = {"id": 67890, "caseName": "Other Case", "dateFiled": "2021-01-01", "citation": ["789 U.S. 012"]}
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should deduplicate based on id
     assert len(result["results"]) == 2
     assert result["results"][0]["id"] == 12345
@@ -442,18 +442,18 @@ async def test_find_citing_cases_deduplication_by_absolute_url(client_instance):
     case1 = {"absolute_url": "/api/rest/v3/opinions/111/", "caseName": "Test Case", "dateFiled": "2020-01-01"}
     case2 = {"absolute_url": "/api/rest/v3/opinions/111/", "caseName": "Test Case", "dateFiled": "2020-01-01"}
     case3 = {"absolute_url": "/api/rest/v3/opinions/222/", "caseName": "Other Case", "dateFiled": "2021-01-01"}
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should deduplicate based on absolute_url
     assert len(result["results"]) == 2
 
@@ -477,18 +477,18 @@ async def test_find_citing_cases_deduplication_by_tuple(client_instance):
         "dateFiled": "1992-06-29",
         "citation": ["505 U.S. 833"]
     }
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should deduplicate using tuple of (caseName, dateFiled, citations)
     assert len(result["results"]) == 2
     assert result["results"][0]["caseName"] == "Roe v. Wade"
@@ -513,18 +513,18 @@ async def test_find_citing_cases_stable_tuple_with_empty_citations(client_instan
         "dateFiled": "2020-01-01",
         "citation": []
     }
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should deduplicate properly even with empty citations
     assert len(result["results"]) == 2
 
@@ -536,18 +536,18 @@ async def test_find_citing_cases_mixed_identifier_types(client_instance):
     case2 = {"absolute_url": "/api/opinions/222/", "caseName": "Case B", "dateFiled": "2020-02-01"}
     case3 = {"caseName": "Case C", "dateFiled": "2020-03-01", "citation": ["123 U.S. 456"]}
     case4 = {"id": 111, "caseName": "Case A", "dateFiled": "2020-01-01"}  # Duplicate of case1
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3, case4]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should deduplicate correctly across different identifier types
     assert len(result["results"]) == 3
 
@@ -559,18 +559,18 @@ async def test_find_citing_cases_preserves_order_after_deduplication(client_inst
     case2 = {"id": 2, "caseName": "Second", "dateFiled": "2020-02-01"}
     case3 = {"id": 1, "caseName": "First", "dateFiled": "2020-01-01"}  # Duplicate
     case4 = {"id": 3, "caseName": "Third", "dateFiled": "2020-03-01"}
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3, case4]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should preserve order: First, Second, Third (with duplicate removed)
     assert len(result["results"]) == 3
     assert result["results"][0]["caseName"] == "First"
@@ -596,18 +596,18 @@ async def test_find_citing_cases_tuple_with_none_values(client_instance):
         "dateFiled": None,
         "citation": []
     }
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should handle None values without crashing
     assert len(result["results"]) == 2
 
@@ -625,18 +625,18 @@ async def test_find_citing_cases_citation_tuple_conversion(client_instance):
         "dateFiled": "2020-01-01",
         "citation": ["410 U.S. 113", "93 S.Ct. 705"]  # Same list, should dedupe
     }
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should deduplicate by converting list to tuple
     assert len(result["results"]) == 1
 
@@ -647,18 +647,18 @@ async def test_find_citing_cases_no_deduplication_needed(client_instance):
     case1 = {"id": 1, "caseName": "Case 1"}
     case2 = {"id": 2, "caseName": "Case 2"}
     case3 = {"id": 3, "caseName": "Case 3"}
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # All cases should be preserved
     assert len(result["results"]) == 3
 
@@ -674,18 +674,18 @@ async def test_find_citing_cases_large_duplicate_set(client_instance):
             "caseName": f"Case {i % 10}",
             "dateFiled": "2020-01-01"
         })
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": cases}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should deduplicate to 10 unique cases
     assert len(result["results"]) == 10
 
@@ -694,18 +694,18 @@ async def test_find_citing_cases_large_duplicate_set(client_instance):
 async def test_find_citing_cases_deduplication_with_limit(client_instance):
     """Test that deduplication works correctly with limit parameter."""
     cases = [{"id": i % 3, "caseName": f"Case {i % 3}"} for i in range(20)]
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": cases}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113", limit=5)
-    
+
     # Should deduplicate first, then apply limit
     assert len(result["results"]) <= 5
 
@@ -718,20 +718,20 @@ async def test_find_citing_cases_tuple_identifier_stability(client_instance):
         "dateFiled": "2020-01-01",
         "citation": ["123 U.S. 456", "789 F.2d 012"]
     }
-    
+
     # Create identifier manually to test stability
     identifier1 = (
         case.get("caseName"),
         case.get("dateFiled"),
         tuple(case.get("citation", []))
     )
-    
+
     identifier2 = (
         case.get("caseName"),
         case.get("dateFiled"),
         tuple(case.get("citation", []))
     )
-    
+
     # Identifiers should be equal and hashable
     assert identifier1 == identifier2
     assert hash(identifier1) == hash(identifier2)
@@ -743,18 +743,18 @@ async def test_find_citing_cases_empty_case_dict(client_instance):
     case1 = {}
     case2 = {"id": 1, "caseName": "Valid Case"}
     case3 = {}
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should handle empty dicts and deduplicate them
     assert len(result["results"]) == 2  # Two empty dicts become one, plus valid case
 
@@ -766,17 +766,17 @@ async def test_find_citing_cases_get_with_default_behavior(client_instance):
     case1 = {"caseName": "Case A"}  # No id, no absolute_url, no dateFiled, no citation
     case2 = {"caseName": "Case A"}  # Same as case1
     case3 = {"caseName": "Case B"}
-    
+
     async def mock_request(method, url, params=None, **kwargs):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"results": [case1, case2, case3]}
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
         return mock_resp
-    
+
     client_instance.client.request = mock_request
-    
+
     result = await client_instance.find_citing_cases("410 U.S. 113")
-    
+
     # Should use tuple with None/empty values and deduplicate
     assert len(result["results"]) == 2

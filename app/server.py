@@ -22,6 +22,7 @@ from app.logging_config import tool_logging
 from app.logging_utils import log_event
 from app.mcp_types import ToolPayload
 from app.tools.cache_tools import cache_server
+from app.tools.jurisdiction import jurisdiction_server
 from app.tools.network import network_server
 from app.tools.research import research_server
 from app.tools.search import search_server
@@ -151,6 +152,15 @@ async def setup() -> None:
     log_event(
         logger,
         "Imported semantic search tools",
+        tool_name="server",
+        event="server_setup",
+    )
+
+    # Import jurisdiction analysis tools
+    await mcp.import_server(jurisdiction_server)
+    log_event(
+        logger,
+        "Imported jurisdiction analysis tools",
         tool_name="server",
         event="server_setup",
     )

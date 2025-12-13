@@ -18,6 +18,9 @@ from typing import Literal
 from app.analysis.document_processing import FootnoteParser
 from app.types import CourtListenerCase, TreatmentStats
 
+# Type alias for location in document (body text vs footnotes)
+LocationType = Literal["body", "footnote"]
+
 logger = logging.getLogger(__name__)
 
 LocationType = Literal["body", "footnote"]
@@ -48,6 +51,7 @@ class TreatmentSignal:
     context: str
     opinion_type: str = "majority"  # majority, concurrence, dissent
     location_type: LocationType = "body"
+    location_type: LocationType = "body"  # body or footnote
 
 
 @dataclass
@@ -65,6 +69,7 @@ class TreatmentAnalysis:
     treatment_context: str = "unknown"  # majority, dissent_only, mixed, etc.
     opinion_breakdown: dict[str, TreatmentType] = field(default_factory=dict)
     location_type: LocationType = "body"  # indicates primary location of signals
+    location_type: LocationType = "body"  # body or footnote - indicates primary location of signals
 
 
 @dataclass
@@ -190,6 +195,10 @@ class TreatmentClassifier:
             re.compile(p, re.IGNORECASE): (s, w) for p, (s, w) in POSITIVE_SIGNALS.items()
         }
 
+        # Optimize court weight patterns
+        self.court_ca_pattern = re.compile(r"ca\d+")
+        self.court_dist_pattern = re.compile(r"d\d+")
+
     def should_fetch_full_text(
         self,
         initial_analysis: "TreatmentAnalysis",
@@ -227,7 +236,7 @@ class TreatmentClassifier:
             bool: True if a negation indicator is found within the preceding window, False otherwise.
         """
         start = max(0, position - window)
-        preceding = text[start:position].lower()
+        preceding = text[start:position]
         return bool(self.negation_pattern.search(preceding))
 
     def _get_court_weight(self, court_id: str | None) -> float:
@@ -250,9 +259,9 @@ class TreatmentClassifier:
         court_id = court_id.lower()
         if "scotus" in court_id or "us" == court_id:
             return 1.0
-        if re.match(r"ca\d+", court_id) or "cir" in court_id:
+        if self.court_ca_pattern.match(court_id) or "cir" in court_id:
             return 0.8
-        if re.match(r"d\d+", court_id) or "dist" in court_id:
+        if self.court_dist_pattern.match(court_id) or "dist" in court_id:
             return 0.6
 
         return 0.7  # State/other courts default
@@ -484,9 +493,16 @@ class TreatmentClassifier:
                             op_treatment, _ = self._aggregate_signals(footnote_signals)
                         else:
                             op_treatment = TreatmentType.NEUTRAL
+                        # Determine treatment for this opinion (using all signals)
+                        combined_signals = body_signals + (
+                            footnote_signals if parsed.footnote_text else []
+                        )
+                        op_treatment, _ = self._aggregate_signals(combined_signals)
 
                     except Exception as e:
-                        logger.warning(f"Failed to parse html_lawbox, falling back to plain text: {e}")
+                        logger.warning(
+                            f"Failed to parse html_lawbox, falling back to plain text: {e}"
+                        )
                         # Fallback to plain text
                         op_text = opinion.get("plain_text") or opinion.get("snippet") or ""
                         if op_text:
@@ -525,6 +541,10 @@ class TreatmentClassifier:
                                 op_treatment, _ = self._aggregate_signals(footnote_signals)
                             else:
                                 op_treatment = TreatmentType.NEUTRAL
+                            combined_signals = body_signals + (
+                                footnote_signals if parsed.footnote_text else []
+                            )
+                            op_treatment, _ = self._aggregate_signals(combined_signals)
 
                         except Exception as e:
                             logger.warning(f"Failed to parse plain text for footnotes: {e}")
@@ -625,7 +645,8 @@ class TreatmentClassifier:
             elif final_treatment == TreatmentType.POSITIVE:
                 treatment_context = "majority_positive"
 
-        # 3. Determine primary location type and apply footnote confidence adjustment
+        # 3. Determine primary location type and apply body precedence
+        # Per requirements: body text signals take precedence over footnote signals
         body_signals = [s for s in all_signals if s.location_type == "body"]
         footnote_signals = [s for s in all_signals if s.location_type == "footnote"]
 
@@ -644,6 +665,36 @@ class TreatmentClassifier:
         primary_location: LocationType = (
             "body" if body_signals else "footnote" if footnote_signals else "body"
         )
+        # Determine primary location based on where signals were found
+        primary_location: LocationType = "body"
+
+        if body_signals and footnote_signals:
+            # Body signals take precedence over footnote signals
+            body_treatment, body_conf = self._aggregate_signals(body_signals, court_weight)
+            footnote_treatment, footnote_conf = self._aggregate_signals(
+                footnote_signals, court_weight
+            )
+
+            # If body has clear treatment (not neutral), it takes precedence
+            if body_treatment != TreatmentType.NEUTRAL:
+                # Body treatment overrides if final_treatment differs
+                if final_treatment != body_treatment:
+                    logger.info(
+                        f"Body treatment ({body_treatment.value}) takes precedence over "
+                        f"combined treatment ({final_treatment.value}) for "
+                        f"{citing_case.get('caseName', 'Unknown')}"
+                    )
+                    final_treatment = body_treatment
+                    final_confidence = body_conf
+                    if body_treatment == TreatmentType.NEGATIVE:
+                        treatment_context = "majority_negative"
+                    elif body_treatment == TreatmentType.POSITIVE:
+                        treatment_context = "majority_positive"
+            elif footnote_treatment != TreatmentType.NEUTRAL:
+                # Only footnotes have clear signals
+                primary_location = "footnote"
+        elif footnote_signals and not body_signals:
+            primary_location = "footnote"
 
         # Apply confidence adjustment if negative signals are found only in footnotes
         # Per requirements: downgrade confidence by 0.2 for footnote-only negative signals
@@ -663,8 +714,10 @@ class TreatmentClassifier:
                     primary_location = "footnote"
 
                 logger.info(
-                    f"Negative treatment signals found only in footnotes for {citing_case.get('caseName', 'Unknown')}. "
-                    f"Reducing confidence from {final_confidence:.2f} to {max(0.0, final_confidence - 0.2):.2f}"
+                    f"Negative treatment signals found only in footnotes for "
+                    f"{citing_case.get('caseName', 'Unknown')}. "
+                    f"Reducing confidence from {final_confidence:.2f} to "
+                    f"{max(0.0, final_confidence - 0.2):.2f}"
                 )
                 final_confidence = max(0.0, final_confidence - 0.2)
 
@@ -854,6 +907,16 @@ class TreatmentClassifier:
         citation: str,
         signals: list[TreatmentSignal],
     ) -> str:
+        """Select the best excerpt from detected signals.
+
+        Args:
+            text: Full text (unused if signals provided).
+            citation: The citation being analyzed.
+            signals: List of detected treatment signals.
+
+        Returns:
+            The context text of the strongest signal, or empty string.
+        """
         if signals:
             best_signal = max(
                 signals,
